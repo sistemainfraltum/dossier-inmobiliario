@@ -948,6 +948,9 @@ def generate_dossier(data: dict, content: dict, lang: str = 'es') -> bytes:
     buf = BytesIO()
 
     def canvas_maker(filename, **kwargs):
+        kwargs.pop('lang', None)
+        kwargs.pop('data', None)
+        kwargs.pop('content', None)
         return PremiumCanvas(filename, data=data, content=content, lang=lang, **kwargs)
 
     doc = SimpleDocTemplate(
