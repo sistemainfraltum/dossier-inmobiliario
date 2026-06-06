@@ -577,11 +577,16 @@ def build_location(data, content, styles, lang):
     bar_labels = labels_es if lang == 'es' else labels_en
     bar_vals   = list(ls.values())
 
-    # Two-column: bars left, radar right
-    bars_drawing = Drawing(9*cm, len(bar_vals)*30 + 10)
-    for i, (lbl, val) in enumerate(zip(bar_labels, bar_vals)):
-        b = score_bar(lbl, val, width=8.5*cm, styles=styles)
-        bars_drawing.add(b, transform=(0, (len(bar_vals)-i-1)*30, 1, 0, 0, 1))
+    # Two-column: bars left (as table), radar right
+    bar_rows = [[score_bar(lbl, val, width=8.5*cm, styles=styles)]
+                for lbl, val in zip(bar_labels, bar_vals)]
+    bars_drawing = Table(bar_rows, colWidths=[9*cm])
+    bars_drawing.setStyle(TableStyle([
+        ('TOPPADDING',    (0,0),(-1,-1), 2),
+        ('BOTTOMPADDING', (0,0),(-1,-1), 2),
+        ('LEFTPADDING',   (0,0),(-1,-1), 0),
+        ('RIGHTPADDING',  (0,0),(-1,-1), 0),
+    ]))
 
     radar_labels_es = ['Conect.','Transport.','Servicios','Comercios','Socioecon.','Crecim.','Resid.','Inversor']
     radar_labels_en = ['Connec.','Transport','Services','Commerce','Socioecon.','Growth','Resid.','Investor']
