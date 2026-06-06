@@ -196,4 +196,4 @@ if __name__ == '__main__':
     print("=" * 62)
     if 'TU_EMAIL' in GMAIL_USER:
         print("\n  ⚠️  Configura Gmail en las variables de entorno\n")
-    app.ru
+    app.run(debug=False, port=port, host='0.0.0.0')
