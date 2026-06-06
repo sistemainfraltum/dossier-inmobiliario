@@ -1,25 +1,20 @@
 """
 Dossier Premium Inmobiliario — Servidor Flask
-Recibe el formulario multipart (con fotos), genera el PDF y lo envía por Gmail.
+Recibe el formulario multipart (con fotos), genera el PDF y lo envía por Resend.
 
-Configuración (editar aquí o usar variables de entorno):
-  GMAIL_USER         → tu cuenta Gmail
-  GMAIL_APP_PASSWORD → contraseña de aplicación de Google (16 caracteres)
+Configuración (variables de entorno en Railway):
+  RESEND_API_KEY → clave API de resend.com (gratis)
 """
-import os, json, re, shutil, tempfile, smtplib, traceback
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
+import os, json, re, shutil, tempfile, traceback, base64
 from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
+import resend
 
 from content_generator import generate_all_content
 from dossier_generator   import generate_dossier
 
 # ── CONFIGURACIÓN ─────────────────────────────────────────────────────────────
-GMAIL_USER         = os.environ.get('GMAIL_USER',         'TU_EMAIL@gmail.com')
-GMAIL_APP_PASSWORD = os.environ.get('GMAIL_APP_PASSWORD', 'XXXX XXXX XXXX XXXX')
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 
 app = Flask(__name__, static_folder='.')
 
@@ -102,36 +97,24 @@ def generar_dossier():
 
 # ── EMAIL ─────────────────────────────────────────────────────────────────────
 def send_email(data, pdf_bytes, filename, lang='es'):
+    resend.api_key = RESEND_API_KEY
     to_email  = data.get('email_destinatario', '')
     to_name   = data.get('nombre_destinatario', '')
-    from_name = data.get('nombre_agente', 'Dossier Premium Inmobiliario')
-    reply_to  = data.get('email_agente', GMAIL_USER) or GMAIL_USER
+    from_name = data.get('nombre_destinatario', 'Dossier Premium')
     direccion = data.get('direccion', '')
     mensaje   = data.get('mensaje_personalizado', '')
 
-    msg = MIMEMultipart('mixed')
-    msg['Subject'] = _subject(direccion, lang)
-    msg['From']    = f"{from_name} <{GMAIL_USER}>"
-    msg['To']      = f"{to_name} <{to_email}>" if to_name else to_email
-    msg['Reply-To'] = reply_to
+    html = _html_body(from_name, to_name, direccion, mensaje, filename, lang)
+    pdf_b64 = base64.b64encode(pdf_bytes).decode()
 
-    # HTML body
-    alt = MIMEMultipart('alternative')
-    html = _html_body(from_name, to_name, direccion, mensaje, filename, reply_to, lang)
-    alt.attach(MIMEText(_strip_html(html), 'plain', 'utf-8'))
-    alt.attach(MIMEText(html, 'html', 'utf-8'))
-    msg.attach(alt)
-
-    # PDF attachment
-    part = MIMEBase('application', 'pdf')
-    part.set_payload(pdf_bytes)
-    encoders.encode_base64(part)
-    part.add_header('Content-Disposition', f'attachment; filename="{filename}"')
-    msg.attach(part)
-
-    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as srv:
-        srv.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-        srv.sendmail(GMAIL_USER, [to_email], msg.as_bytes())
+    params = {
+        "from": "Dossier Premium <onboarding@resend.dev>",
+        "to": [to_email],
+        "subject": _subject(direccion, lang),
+        "html": html,
+        "attachments": [{"filename": filename, "content": pdf_b64}],
+    }
+    resend.Emails.send(params)
 
 
 def _subject(direccion, lang):
@@ -140,7 +123,7 @@ def _subject(direccion, lang):
     return f"Dossier Premium de Inversión · {direccion[:50]}" if direccion else "Dossier Premium de Inversión"
 
 
-def _html_body(from_name, to_name, direccion, mensaje, filename, reply_email, lang):
+def _html_body(from_name, to_name, direccion, mensaje, filename, lang):
     saludo = (f"Estimado/a {to_name}," if to_name else "Estimado/a inversor/a:") if lang == 'es' else (f"Dear {to_name}," if to_name else "Dear Investor,")
     intro = (f"Le adjuntamos el <strong>Dossier Premium de Inversión</strong> correspondiente a la propiedad:<br/><strong style='color:#C9A84C;'>{direccion}</strong>"
              if lang == 'es' else
@@ -175,7 +158,6 @@ def _html_body(from_name, to_name, direccion, mensaje, filename, reply_email, la
   <tr><td style="padding:18px 36px;background:#07101D;">
     <p style="margin:0 0 5px;font-size:10px;font-weight:700;color:#6B82A0;text-transform:uppercase;letter-spacing:1px;">{contact_lbl}</p>
     <p style="margin:0;font-size:13px;color:#C8D8E8;font-weight:600;">{from_name}</p>
-    {f'<p style="margin:2px 0;font-size:12px;color:#6B82A0;">{reply_email}</p>' if reply_email else ''}
   </td></tr>
   <tr><td style="background:#040A12;padding:16px 36px;border-top:2px solid #C9A84C;">
     <p style="margin:0;font-size:11px;color:#3A5060;line-height:1.6;">{footer}</p>
@@ -194,6 +176,6 @@ if __name__ == '__main__':
     print("  DOSSIER PREMIUM INMOBILIARIO  —  Sistema Infraltum")
     print(f"  Servidor: http://localhost:{port}")
     print("=" * 62)
-    if 'TU_EMAIL' in GMAIL_USER:
-        print("\n  ⚠️  Configura Gmail en las variables de entorno\n")
+    if not RESEND_API_KEY:
+        print("\n  ⚠️  Añade RESEND_API_KEY en las variables de entorno\n")
     app.run(debug=False, port=port, host='0.0.0.0')
