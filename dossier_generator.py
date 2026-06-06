@@ -165,12 +165,12 @@ LABELS = {
 
 # ─── CANVAS PERSONALIZADO ─────────────────────────────────────────────────────
 class PremiumCanvas(pdfcanvas.Canvas):
-    def __init__(self, *args, data=None, content=None, lang='es', **kwargs):
+    def __init__(self, *args, **kwargs):
+        self.data    = kwargs.pop('data', {}) or {}
+        self.content = kwargs.pop('content', {}) or {}
+        self.lang    = kwargs.pop('lang', 'es')
+        self._pages  = []
         super().__init__(*args, **kwargs)
-        self.data = data or {}
-        self.content = content or {}
-        self.lang = lang
-        self._pages = []
 
     def showPage(self):
         self._pages.append(dict(self.__dict__))
