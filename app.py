@@ -1,30 +1,24 @@
 """
 Dossier Premium Inmobiliario — Servidor Flask
-Recibe el formulario multipart (con fotos), genera el PDF y lo envía por Resend.
-
-Configuración (variables de entorno en Railway):
-  RESEND_API_KEY → clave API de resend.com (gratis)
+Genera el PDF y lo devuelve como descarga directa al navegador.
 """
 import os, json, re, shutil, tempfile, traceback, base64
 from datetime import datetime
-from flask import Flask, request, jsonify, send_from_directory
-import resend
-
+from flask import Flask, request, jsonify, send_from_directory, send_file, make_response
+from io import BytesIO
+ 
 from content_generator import generate_all_content
 from dossier_generator   import generate_dossier
-
-# ── CONFIGURACIÓN ─────────────────────────────────────────────────────────────
-RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
-
+ 
 app = Flask(__name__, static_folder='.')
-
-
+ 
+ 
 # ── RUTAS ─────────────────────────────────────────────────────────────────────
 @app.route('/')
 def index():
     return send_from_directory('.', 'index.html')
-
-
+ 
+ 
 @app.route('/generar-dossier', methods=['POST'])
 def generar_dossier():
     tmp_dir = None
@@ -33,22 +27,22 @@ def generar_dossier():
         data = {}
         for key in request.form:
             data[key] = request.form.get(key, '')
-
+ 
         # Desempaquetar lista de características (JSON array)
         if 'caracteristicas' in data:
             try:
                 data['caracteristicas'] = json.loads(data['caracteristicas'])
             except Exception:
                 data['caracteristicas'] = []
-
+ 
         # Validaciones básicas
         if not data.get('email_destinatario', '').strip():
             return jsonify({'success': False, 'error': 'Campo obligatorio: email_destinatario'}), 400
-
+ 
         # El nombre del agente/presentador es el mismo que rellena el formulario
         if not data.get('nombre_agente'):
             data['nombre_agente'] = data.get('nombre_destinatario', '')
-
+ 
         # ── Guardar fotos subidas ────────────────────────────────────────────
         tmp_dir = tempfile.mkdtemp(prefix='dossier_')
         foto_paths = []
@@ -63,61 +57,40 @@ def generar_dossier():
                     f.save(path)
                     foto_paths.append(path)
         data['foto_paths'] = foto_paths
-
+ 
         # ── Generar contenido ────────────────────────────────────────────────
         content = generate_all_content(data)
-
+ 
         # ── Generar PDF ──────────────────────────────────────────────────────
         lang = data.get('idioma', 'es')
         pdf_bytes = generate_dossier(data, content, lang)
-
+ 
         # ── Nombre del archivo ───────────────────────────────────────────────
         barrio    = (data.get('barrio') or data.get('ciudad', '')).replace(' ', '_')
         timestamp = datetime.now().strftime('%Y%m%d_%H%M')
         filename  = f"Dossier_Premium_{barrio}_{timestamp}.pdf"
         filename  = re.sub(r'[^\w\.\-]', '_', filename)
-
-        # ── Enviar email ─────────────────────────────────────────────────────
-        send_email(data, pdf_bytes, filename, lang)
-
-        return jsonify({'success': True, 'filename': filename})
-
+ 
+        # ── Devolver PDF como descarga directa ───────────────────────────────
+        response = make_response(pdf_bytes)
+        response.headers['Content-Type'] = 'application/pdf'
+        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+ 
     except Exception as e:
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         if tmp_dir:
             shutil.rmtree(tmp_dir, ignore_errors=True)
-
-
-# ── EMAIL ─────────────────────────────────────────────────────────────────────
-def send_email(data, pdf_bytes, filename, lang='es'):
-    resend.api_key = RESEND_API_KEY
-    to_email  = data.get('email_destinatario', '')
-    to_name   = data.get('nombre_destinatario', '')
-    from_name = data.get('nombre_destinatario', 'Dossier Premium')
-    direccion = data.get('direccion', '')
-    mensaje   = data.get('mensaje_personalizado', '')
-
-    html = _html_body(from_name, to_name, direccion, mensaje, filename, lang)
-    pdf_b64 = base64.b64encode(pdf_bytes).decode()
-
-    params = {
-        "from": "Dossier Premium <onboarding@resend.dev>",
-        "to": [to_email],
-        "subject": _subject(direccion, lang),
-        "html": html,
-        "attachments": [{"filename": filename, "content": pdf_b64}],
-    }
-    resend.Emails.send(params)
-
-
+ 
+ 
 def _subject(direccion, lang):
     if lang == 'en':
         return f"Premium Investment Dossier · {direccion[:50]}" if direccion else "Premium Investment Dossier"
     return f"Dossier Premium de Inversión · {direccion[:50]}" if direccion else "Dossier Premium de Inversión"
-
-
+ 
+ 
 def _html_body(from_name, to_name, direccion, mensaje, filename, lang):
     saludo = (f"Estimado/a {to_name}," if to_name else "Estimado/a inversor/a:") if lang == 'es' else (f"Dear {to_name}," if to_name else "Dear Investor,")
     intro = (f"Le adjuntamos el <strong>Dossier Premium de Inversión</strong> correspondiente a la propiedad:<br/><strong style='color:#C9A84C;'>{direccion}</strong>"
@@ -158,12 +131,12 @@ def _html_body(from_name, to_name, direccion, mensaje, filename, lang):
     <p style="margin:0;font-size:11px;color:#3A5060;line-height:1.6;">{footer}</p>
   </td></tr>
 </table></td></tr></table></body></html>"""
-
-
+ 
+ 
 def _strip_html(html):
     return re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', html)).strip()
-
-
+ 
+ 
 # ─────────────────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
@@ -174,3 +147,4 @@ if __name__ == '__main__':
     if not RESEND_API_KEY:
         print("\n  ⚠️  Añade RESEND_API_KEY en las variables de entorno\n")
     app.run(debug=False, port=port, host='0.0.0.0')
+ 
