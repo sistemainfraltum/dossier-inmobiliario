@@ -82,11 +82,6 @@ def generar_dossier():
 
         return jsonify({'success': True, 'filename': filename})
 
-    except smtplib.SMTPAuthenticationError:
-        return jsonify({
-            'success': False,
-            'error': 'Error de autenticación Gmail. Revisa GMAIL_USER y GMAIL_APP_PASSWORD en app.py'
-        }), 500
     except Exception as e:
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
