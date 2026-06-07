@@ -1,4 +1,4 @@
- """
+"""
 Motor PDF Premium v4 — Dossier Inmobiliario
 Rediseño completo: letras grandes, fondos arquitectónicos, cards visibles,
 habitaciones en descripción, servicios ampliados, gráficos grandes.
