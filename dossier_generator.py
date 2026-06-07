@@ -199,7 +199,7 @@ PAGE_BG = {
 }
 
 def _zone_imgs(data, lang):
-    srv = (data.get('servicios_cercanos') or '').lower()
+    srv = (data.get('servicios_cerca&ntilde;os') or '').lower()
     es = lang == 'es'
     pool = []
     checks = [
@@ -291,19 +291,34 @@ body {
 }
 .page:last-child { page-break-after: auto; }
 
-/* Subtle architectural background image */
-.page-bg {
+/* City overlay — igual que el HTML original */
+.city-overlay {
     position: absolute;
     inset: 0;
-    z-index: 0;
-    overflow: hidden;
+    pointer-events: none;
+    z-index: 1;
 }
-.page-bg img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    opacity: 0.055;
+.city-overlay::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0.22;
     mix-blend-mode: multiply;
+    filter: grayscale(70%) contrast(130%) brightness(0.85);
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.7) 22%, rgba(0,0,0,1) 100%);
+    mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.7) 22%, rgba(0,0,0,1) 100%);
+    background-size: cover;
+    background-position: center;
+}
+.city-overlay.bg-one::before {
+    background-image:
+        linear-gradient(180deg, rgba(7,12,22,0.25), rgba(7,12,22,0.07)),
+        url('https://images.unsplash.com/photo-1518005020951-eccb494ad742?fm=jpg&q=80&w=1600');
+}
+.city-overlay.bg-two::before {
+    background-image:
+        linear-gradient(180deg, rgba(7,12,22,0.25), rgba(7,12,22,0.10)),
+        url('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?fm=jpg&q=80&w=1600');
 }
 
 /* Double gold border frames */
@@ -359,7 +374,7 @@ body {
 .inner {
     position: relative;
     z-index: 4;
-    padding: 16mm 17mm 17mm;
+    padding: 13mm 15mm 13mm;
     min-height: 297mm;
 }
 
@@ -486,65 +501,71 @@ h4 {
     border-top: 1px solid rgba(201,168,76,0.28);
 }
 
-.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
-.g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4mm; }
-.g4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 3.5mm; }
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+.g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3.5mm; }
+.g4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 3mm; }
 
-/* ── CARDS — paleta cálida del template original ── */
+/* ── CARDS — colores exactos del HTML original ── */
 .card {
-    padding: 5.5mm 5mm;
-    border: 1px solid rgba(201,168,76,0.28);
-    background: linear-gradient(135deg, var(--warm) 0%, rgba(253,244,227,0.85) 100%);
-    border-left: 2px solid var(--champagne);
+    position: relative;
+    padding: 5mm;
+    border: 1px solid rgba(36,52,71,0.12);
+    background: linear-gradient(135deg, rgba(255,255,255,0.86), rgba(251,247,239,0.66));
+    overflow: hidden;
+}
+.card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0;
+    width: 1.1mm; height: 100%;
+    background: linear-gradient(180deg, var(--champagne), rgba(215,181,109,0.10));
 }
 .card h3 { color: var(--ink); }
 .card h4 { color: var(--bronze); }
-.card .text { color: var(--slate); font-size: 9.5pt; }
+.card .text { color: var(--slate); font-size: 9pt; }
 
 .card.stone {
-    background: linear-gradient(135deg, #f0e8d6 0%, #f8f2e6 100%);
-    border-color: rgba(138,104,40,0.25);
-    border-left-color: var(--bronze);
+    background: linear-gradient(135deg, rgba(239,231,218,0.96), rgba(255,250,242,0.74));
+    border-color: rgba(155,118,56,0.18);
 }
 .card.sky {
-    background: linear-gradient(135deg, #e8f4f9 0%, #f0f8fc 100%);
-    border-color: rgba(85,140,170,0.22);
-    border-left-color: #5c9ab8;
+    background: linear-gradient(135deg, rgba(237,245,248,0.94), rgba(220,238,246,0.78));
+    border-color: rgba(85,132,156,0.18);
 }
-.card.sky h4 { color: #3d7a96; }
-.card.sky .text { color: #2d5e75; }
+.card.sky h4 { color: #3d6e8a; }
+.card.sky .text { color: #2d5468; }
 
 .card.dark {
-    background: linear-gradient(135deg, #1e3248, #284057);
+    background: linear-gradient(135deg, #31465d 0%, #405a72 58%, #b99755 160%);
     border: none;
-    border-left: 2px solid var(--champ-soft);
     color: #fff;
 }
-.card.dark .text { color: rgba(255,255,255,0.88); font-size: 9.5pt; }
+.card.dark::before { background: linear-gradient(180deg, var(--champ-soft), var(--champagne)); }
+.card.dark .text { color: rgba(255,255,255,0.82); }
 .card.dark h4    { color: var(--champ-soft); }
 .card.dark h3    { color: #fff; }
 
 .card.gold {
-    background: linear-gradient(135deg, #c09038, #a07028);
+    background: linear-gradient(135deg, #d9bb74 0%, #b98f45 52%, #f2dfaa 130%);
     border: none;
-    border-left: 2px solid rgba(255,255,255,0.50);
     color: #fff;
 }
-.card.gold .text { color: rgba(255,255,255,0.90); }
-.card.gold h4    { color: #fff0c0; }
+.card.gold::before { background: rgba(255,255,255,0.45); }
+.card.gold .text { color: rgba(255,255,255,0.88); }
+.card.gold h4    { color: #fff7df; }
 
 /* KPI boxes */
-.kpi-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 4mm; margin: 5mm 0; }
+.kpi-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 3.5mm; margin: 4mm 0; }
 .kpi {
-    padding: 5.5mm 4mm;
-    background: linear-gradient(135deg, var(--warm), var(--pearl));
-    border: 1px solid rgba(201,168,76,0.30);
-    border-left: 2px solid var(--champagne);
+    min-height: 30mm;
+    padding: 4mm;
+    background: linear-gradient(135deg, rgba(255,255,255,0.88), rgba(237,245,248,0.76));
+    border: 1px solid rgba(36,52,71,0.12);
 }
 .kpi.dark {
-    background: linear-gradient(135deg, #1e3248, #284057);
+    background: linear-gradient(135deg, rgba(49,70,93,0.96), rgba(64,90,114,0.90));
     border: none;
-    border-left: 2px solid var(--champ-soft);
+    color: #fff;
 }
 .kpi .num {
     font-family: 'Cormorant Garamond', Georgia, serif;
@@ -629,19 +650,28 @@ h4 {
 }
 
 /* Room grid */
-.room-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3.5mm; margin: 4mm 0; }
+.room-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3mm; margin: 3mm 0; }
 .room-item { border: 1px solid rgba(201,168,76,0.25); overflow: hidden; background: var(--warm); }
-.room-item img { display: block; width: 100%; height: 36mm; object-fit: cover; }
+.room-item img { display: block; width: 100%; height: 30mm; object-fit: cover; }
 .room-cap {
-    padding: 2.5mm 3mm;
+    padding: 2mm 3mm 1.5mm;
     background: linear-gradient(135deg, var(--warm), var(--ivory));
     font-family: 'Inter', Arial, sans-serif;
-    font-size: 7.5pt;
+    font-size: 7pt;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     font-weight: 800;
     color: var(--bronze);
     border-top: 1px solid rgba(201,168,76,0.25);
+}
+.room-desc {
+    padding: 2mm 3mm 2.5mm;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 7pt;
+    line-height: 1.45;
+    color: var(--navy);
+    margin: 0;
+    background: rgba(255,255,255,0.55);
 }
 
 .vgallery { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3.5mm; margin: 4mm 0; }
@@ -839,15 +869,18 @@ h4 {
 
 # ─── PAGE / SECTION HELPERS ───────────────────────────────────────────────────
 
+_BG_CYCLE = ['bg-one', 'bg-two', 'bg-one', 'bg-two', 'bg-one', 'bg-two',
+             'bg-one', 'bg-two', 'bg-one', 'bg-two', 'bg-one', 'bg-two']
+_bg_counter = [0]
+
 def _page(content, cls='', orbit=True, bg_key=None):
     orbit_html = '<div class="decor-orbit"></div>' if orbit else ''
-    bg_html = ''
-    if bg_key and bg_key in PAGE_BG:
-        bg_html = f'<div class="page-bg"><img src="{PAGE_BG[bg_key]}" alt=""/></div>'
+    bg_variant = _BG_CYCLE[_bg_counter[0] % len(_BG_CYCLE)]
+    _bg_counter[0] += 1
     return (
         f'<section class="page {cls}">'
         f'<div class="decor-grid"></div>'
-        f'{bg_html}'
+        f'<div class="city-overlay {bg_variant}"></div>'
         f'{orbit_html}'
         f'{content}'
         f'</section>'
@@ -996,14 +1029,28 @@ def _build_summary(data, content, lang, n):
     perf_c = comm.get('perfil_comprador', '')
     tesis = content['conclusions']['texto']
 
+    # Enrich investor profile with extra data-driven characteristics
+    dem = _s(data.get('demanda_alquiler', ''))
+    rev = _s(data.get('revalorizacion', ''))
+    yb = fin.get('yield_bruto', 0)
     if es:
         sh_ey = 'Resumen Ejecutivo'; sh_tt = 'Una oportunidad inmobiliaria con analisis de criterio institucional.'
         c1_lbl = 'Propuesta de Valor'; c2_lbl = 'Perfil Inversor' if tipo_dossier == 'inversores' else 'Comprador Ideal'
         t_lbl = 'Tesis de inversion'
+        dem_txt = {'muy_alta':'demanda de alquiler muy alta — minima vacancia esperada','alta':'demanda de alquiler alta y sostenida','media':'demanda moderada y estable en la zona','baja':'mercado con selectividad — activo de nicho'}.get(dem,'demanda activa en la zona')
+        rev_txt = {'muy_alto':'potencial de revalorizacion muy alto a largo plazo','alto':'revalorizacion estimada superior a la media de mercado','moderado':'apreciacion moderada y estable del activo','bajo':'activo de renta con menor componente especulativo'}.get(rev,'buenas perspectivas de revalorizacion')
+        yb_txt = f'Yield bruta objetivo del {yb:.1f}%. ' if yb else ''
+        inv_extra = f' {yb_txt}Zona con {dem_txt}. Perspectiva: {rev_txt}.'
     else:
         sh_ey = 'Executive Summary'; sh_tt = 'A real estate opportunity with institutional-grade analysis.'
         c1_lbl = 'Value Proposition'; c2_lbl = 'Investor Profile' if tipo_dossier == 'inversores' else 'Ideal Buyer'
         t_lbl = 'Investment thesis'
+        dem_txt = {'muy_alta':'very high rental demand — minimal expected vacancy','alta':'high and sustained rental demand','media':'moderate and stable demand in the area','baja':'selective market — niche asset'}.get(dem,'active demand in the area')
+        rev_txt = {'muy_alto':'very high long-term appreciation potential','alto':'estimated appreciation above market average','moderado':'moderate and stable asset appreciation','bajo':'income asset with lower speculative component'}.get(rev,'good appreciation prospects')
+        yb_txt = f'Target gross yield of {yb:.1f}%. ' if yb else ''
+        inv_extra = f' {yb_txt}Area with {dem_txt}. Outlook: {rev_txt}.'
+
+    perf_c_full = perf_c + inv_extra if perf_c else inv_extra
 
     body2_html = f'<p class="text" style="margin-bottom:3mm;">{body2}</p>' if body2 else ''
 
@@ -1016,7 +1063,7 @@ def _build_summary(data, content, lang, n):
         f'<div class="divider"></div>'
         f'<div class="g2">'
         f'{_card(c1_lbl, "", prop_val, "stone")}'
-        f'{_card(c2_lbl, "", perf_c, "dark")}'
+        f'{_card(c2_lbl, "", perf_c_full, "dark")}'
         f'</div>'
         f'<div class="note"><strong>{t_lbl}:</strong> {tesis}</div>'
         f'{_foot(sh_ey, ciudad)}'
@@ -1073,7 +1120,7 @@ def _build_ficha(data, content, lang, n):
         row('Precio', _eur(data.get('precio_venta')))
         row('Sup. construida', f"{_s(data.get('metros_construidos'))} m2")
         if data.get('metros_utiles'): row('Sup. util', f"{_s(data.get('metros_utiles'))} m2")
-        if data.get('dormitorios'): row('Dormitorios / Banos', f"{_s(data.get('dormitorios'))} / {_s(data.get('banos'))}")
+        if data.get('dormitorios'): row('Dormitorios / Ba&ntilde;os', f"{_s(data.get('dormitorios'))} / {_s(data.get('banos'))}")
         row('Ano construccion', _s(data.get('anyo_construccion')))
         row('Estado', estado_lbl)
         row('Cert. Energetico', _s(data.get('certificado_energetico')))
@@ -1138,26 +1185,40 @@ def _build_commercial(data, content, lang, n):
     lead = paras[0] if paras else ''
     body = ''.join(f'<p class="text" style="margin-bottom:2.5mm;">{p}</p>' for p in paras[1:2])
 
-    # Room labels and fallback images
+    # Room labels, descriptions and fallback images
     if es:
         sh_ey = 'Descripcion del Inmueble'; sh_tt = 'Cada espacio, presentado con criterio y detalle.'
-        room_labels = ['Salon / Living', 'Cocina', 'Dormitorio Principal', 'Bano', 'Zona Exterior', 'Zona Adicional']
+        room_data = [
+            ('Salon Principal',   'Amplio salon de estar con luz natural, distribucion diafana y acabados de calidad. Espacio ideal para la vida familiar y la representacion social.'),
+            ('Cocina',            'Cocina funcional y bien equipada, con disposicion eficiente y materiales de calidad. Perfectamente integrada con el resto de la vivienda.'),
+            ('Dormitorio Princ.', 'Dormitorio principal de generosas dimensiones, buena orientacion y armarios integrados. Ambiente tranquilo y confortable para el descanso.'),
+            ('Ba&ntilde;o',       'Ba&ntilde;o completo con acabados cuidados, sanitarios de primera calidad y buena ventilacion. Estetica contemporanea y funcionalidad integral.'),
+            ('Zona Exterior',     'Espacio exterior propio que amplia la superficie util y ofrece contacto directo con el exterior, la luz natural y el entorno.'),
+            ('Zona Adicional',    'Espacio versatil susceptible de multiples usos: despacho, sala de estudio, sala de juegos o habitacion de invitados.'),
+        ]
         estado_desc = {
-            'nuevo': 'Inmueble a estrenar con acabados de primera calidad.',
-            'excelente': 'Excelente estado de conservacion, listo para entrar a vivir.',
-            'bueno': 'Buen estado general con mantenimiento cuidado a lo largo de los anos.',
-            'reformar': 'Inmueble con potencial de reforma — gran oportunidad de personalizacion.',
-            '': 'Calidades y acabados acordes al posicionamiento del activo.'
+            'nuevo': 'Inmueble a estrenar con acabados de primera calidad en todos sus espacios.',
+            'excelente': 'Excelente estado de conservacion, listo para entrar a vivir sin actuacion alguna.',
+            'bueno': 'Buen estado general con mantenimiento cuidado a lo largo de los a&ntilde;os.',
+            'reformar': 'Con potencial de reforma — gran oportunidad de personalizacion y creacion de valor.',
+            '': 'Calidades y acabados acordes al posicionamiento del activo en el mercado.'
         }.get(estado, '')
     else:
         sh_ey = 'Property Description'; sh_tt = 'Every space, presented with criterion and detail.'
-        room_labels = ['Living Room', 'Kitchen', 'Master Bedroom', 'Bathroom', 'Exterior Area', 'Additional Space']
+        room_data = [
+            ('Living Room',      'Spacious living room with natural light, open layout and quality finishes. Ideal for family life and social entertaining.'),
+            ('Kitchen',          'Functional and well-equipped kitchen with efficient layout and quality materials. Perfectly integrated with the rest of the home.'),
+            ('Master Bedroom',   'Generously sized master bedroom with good orientation and built-in wardrobes. Peaceful and comfortable environment for rest.'),
+            ('Bathroom',         'Full bathroom with careful finishes, first-class sanitary ware and good ventilation. Contemporary aesthetics and comprehensive functionality.'),
+            ('Exterior Area',    'Private exterior space that extends the usable area and offers direct contact with the outdoors, natural light and the surrounding environment.'),
+            ('Additional Space', 'Versatile space suitable for multiple uses: office, study room, games room or guest bedroom according to the occupant\'s needs.'),
+        ]
         estado_desc = {
-            'nuevo': 'Brand new property with first-class finishes.',
-            'excelente': 'Excellent condition, ready to move in.',
+            'nuevo': 'Brand new property with first-class finishes throughout all spaces.',
+            'excelente': 'Excellent condition, ready for immediate occupation with no works needed.',
             'bueno': 'Good general condition with careful maintenance over the years.',
-            'reformar': 'Property with renovation potential — great personalisation opportunity.',
-            '': 'Qualities and finishes in line with the asset positioning.'
+            'reformar': 'Renovation potential — great opportunity for personalisation and value creation.',
+            '': 'Qualities and finishes in line with the asset\'s market positioning.'
         }.get(estado, '')
 
     room_fallbacks = [IMGS['living'], IMGS['kitchen'], IMGS['bedroom'], IMGS['bathroom'], IMGS['terrace'], IMGS['interior2']]
@@ -1168,12 +1229,13 @@ def _build_commercial(data, content, lang, n):
             if s: return s
         return room_fallbacks[idx % len(room_fallbacks)]
 
-    # Build room grid — max 6 rooms (2 rows of 3)
+    # Build room grid — max 6 rooms (2 rows of 3) with descriptions below each image
     num_rooms = max(3, min(6, len(fotos) if fotos else 6))
     rooms_html = ''.join(
         f'<div class="room-item">'
-        f'<img src="{get_room_src(i)}" alt="{room_labels[i]}"/>'
-        f'<div class="room-cap">{room_labels[i]}</div>'
+        f'<img src="{get_room_src(i)}" alt="{room_data[i][0]}"/>'
+        f'<div class="room-cap">{room_data[i][0]}</div>'
+        f'<p class="room-desc">{room_data[i][1]}</p>'
         f'</div>'
         for i in range(num_rooms)
     )
@@ -1270,7 +1332,7 @@ def _build_services(data, content, lang, n):
     es = lang == 'es'
     ciudad = _s(data.get('ciudad'), '')
     barrio = _s(data.get('barrio')) or ciudad
-    srv_raw = (data.get('servicios_cercanos') or '').lower()
+    srv_raw = (data.get('servicios_cerca&ntilde;os') or '').lower()
     ls = content['loc_scores']
 
     if es:
@@ -1400,7 +1462,7 @@ def _build_investment(data, content, lang, n):
             ('Ingresos brutos anuales', _eur(ing) if ing else 'Pendiente'),
             ('Gastos operativos', _eur(gastos_total) if gastos_total else '—'),
             ('Ingresos netos anuales', _eur(ing_n) if ing_n else '—'),
-            ('Payback estimado', f"{pb:.1f} anos" if pb else '—'),
+            ('Rentabilidad neta anual', _pct(yn) if yn else '—'),
         ]
         d1l = 'Yield Bruta'; d2l = 'Yield Neta'; d3l = 'ROI 5 Anos'
         nota = (f"Escenario calculado con {_s(data.get('ocupacion','90'))}% de ocupacion y revalorizacion "
@@ -1414,7 +1476,7 @@ def _build_investment(data, content, lang, n):
             ('Annual gross income', _eur(ing) if ing else 'TBD'),
             ('Operating costs', _eur(gastos_total) if gastos_total else '—'),
             ('Annual net income', _eur(ing_n) if ing_n else '—'),
-            ('Estimated payback', f"{pb:.1f} years" if pb else '—'),
+            ('Annual net return', _pct(yn) if yn else '—'),
         ]
         d1l = 'Gross Yield'; d2l = 'Net Yield'; d3l = '5Y ROI'
         nota = (f"Scenario at {_s(data.get('ocupacion','90'))}% occupancy and estimated {_pct(rev)}/yr appreciation. "
@@ -1509,7 +1571,7 @@ def _build_value_plan(data, content, lang, n):
         extras = [
             ('Optimizacion Fiscal', 'Amortizacion del activo, deduccion de gastos operativos y estructura juridica optima para el perfil inversor. Ahorro fiscal estimado 20-30%.', 'stone'),
             ('Gestion Profesional', 'Delegacion a empresa especializada en gestion de activos. Comision tipica del 8-12% sobre renta bruta. Cero gestion directa del inversor.', 'sky'),
-            ('Estrategia de Salida', 'Venta a 5-7 anos en mercado abierto, a inquilino con derecho de tanteo, o incorporacion a fondo patrimonial. Plusvalia estimada por revalorizacion incluida en el ROI.', 'dark'),
+            ('Estrategia de Salida', 'Venta a 5-7 a&ntilde;os en mercado abierto, a inquilino con derecho de tanteo, o incorporacion a fondo patrimonial. Plusvalia estimada por revalorizacion incluida en el ROI.', 'dark'),
         ]
     else:
         sh_ey = 'Value Creation Plan'; sh_tt = 'How to turn this asset into sustained returns.'
@@ -1814,3 +1876,109 @@ def generate_dossier(data, content, lang='es'):
     html = _build_html(data, content, lang)
     from weasyprint import HTML
     return HTML(string=html, base_url='https://images.unsplash.com').write_pdf()
+f"Una oportunidad limitada para tomar posicion en {ciudad}."
+            copy  = f"Este activo representa una ventana de inversion con fundamentos solidos en {barrio}. Las oportunidades de este calibre son escasas y de alta rotacion en el mercado actual."
+            cta   = "Solicite su visita privada y documentacion tecnica completa."
+        else:
+            title = f"Tu hogar en {barrio} te esta esperando."
+            copy  = f"Cada espacio de este inmueble ha sido seleccionado para ofrecerte calidad de vida superior en {ciudad}. Da el primer paso hoy."
+            cta   = "Solicite una visita privada para conocer el inmueble en persona."
+        dossier_tag = 'Dossier Premium Inmobiliario'
+        cta_lbl = 'Agente / Contacto'
+        prox = 'Proximo Paso'
+        tel_lbl = 'Telefono'
+        score_lbl = 'Score Premium'
+    else:
+        if tipo_dossier == 'inversores':
+            title = f"A limited opportunity to take position in {ciudad}."
+            copy  = f"This asset represents an investment window with solid fundamentals in {barrio}. Opportunities of this calibre are scarce and high-turnover in today's market."
+            cta   = "Request your private visit and complete technical documentation."
+        else:
+            title = f"Your home in {barrio} is waiting for you."
+            copy  = f"Every space in this property has been selected to offer you superior quality of life in {ciudad}. Take the first step today."
+            cta   = "Request a private visit to see the property in person."
+        dossier_tag = 'Premium Real Estate Dossier'
+        cta_lbl = 'Agent / Contact'
+        prox = 'Next Step'
+        tel_lbl = 'Phone'
+        score_lbl = 'Premium Score'
+
+    contact_rows = ''
+    if nombre: contact_rows += f'<tr><td>{cta_lbl}</td><td><strong>{nombre}</strong></td></tr>'
+    if tel:    contact_rows += f'<tr><td>{tel_lbl}</td><td>{tel}</td></tr>'
+    if email:  contact_rows += f'<tr><td>Email</td><td>{email}</td></tr>'
+    if web:    contact_rows += f'<tr><td>Web</td><td>{web}</td></tr>'
+
+    return _page(
+        f'<div class="inner" style="display:flex;flex-direction:column;justify-content:space-between;">'
+        f'<div>'
+        f'{_sh(dossier_tag, ciudad, 0)}'
+        f'<h2 style="font-family:\'Cormorant Garamond\',Georgia,serif;font-size:22pt;font-weight:700;'
+        f'color:var(--navy);margin:6mm 0 3mm;line-height:1.22;">{title}</h2>'
+        f'<p class="lead" style="margin-bottom:5mm;">{copy}</p>'
+        f'</div>'
+        f'<div>'
+        f'<img src="{final_src}" style="width:100%;height:55mm;object-fit:cover;margin-bottom:6mm;'
+        f'border:1px solid rgba(201,168,76,0.25);" />'
+        f'<div class="g2" style="margin-bottom:5mm;">'
+        f'<div class="card stone">'
+        f'<h4>{prox}</h4>'
+        f'<p class="text">{cta}</p>'
+        f'</div>'
+        f'<div class="card dark">'
+        f'<h4>{score_lbl}</h4>'
+        f'<p class="text" style="font-size:24pt;font-weight:700;color:#d7b56d;margin:2mm 0 1mm;">{ps}/10</p>'
+        f'<p class="text" style="font-size:7pt;opacity:0.75;">{dossier_tag} &copy; {anyo}</p>'
+        f'</div>'
+        f'</div>'
+        f'<table class="data-table" style="width:100%;">'
+        f'<tbody>{contact_rows}</tbody>'
+        f'</table>'
+        f'</div>'
+        f'{_foot(dossier_tag, ciudad)}'
+        f'</div>',
+        orbit=False
+    )
+
+
+# ─── ENTRY POINT ──────────────────────────────────────────────────────────────
+
+def generate_dossier(data, content, lang='es'):
+    global _bg_counter
+    _bg_counter = [0]
+
+    tipo_dossier = data.get('tipo_dossier', 'inversores')
+    pages = [_build_cover(data, content, lang)]
+    n = 1
+
+    pages.append(_build_summary(data, content, lang, n));    n += 1
+    pages.append(_build_ficha(data, content, lang, n));      n += 1
+    pages.append(_build_commercial(data, content, lang, n)); n += 1
+    pages.append(_build_location(data, content, lang, n));   n += 1
+    pages.append(_build_services(data, content, lang, n));   n += 1
+
+    if tipo_dossier == 'inversores':
+        pages.append(_build_investment(data, content, lang, n));  n += 1
+        pages.append(_build_advantages(data, content, lang, n));  n += 1
+        pages.append(_build_value_plan(data, content, lang, n));  n += 1
+        pages.append(_build_strategic(data, content, lang, n));   n += 1
+    else:
+        pages.append(_build_lifestyle(data, content, lang, n));   n += 1
+        pages.append(_build_advantages(data, content, lang, n));  n += 1
+
+    pages.append(_build_gallery(data, content, lang, n));    n += 1
+    pages.append(_build_final(data, content, lang))
+
+    body = '\n'.join(pages)
+    html = f'''<!DOCTYPE html>
+<html lang="{lang}">
+<head>
+<meta charset="UTF-8"/>
+<style>{_css()}</style>
+</head>
+<body>
+{body}
+</body>
+</html>'''
+    from weasyprint import HTML as WH
+    return WH(string=html).write_pdf()
