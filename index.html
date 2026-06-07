@@ -976,6 +976,7 @@ async function submitForm() {
     const contentType = res.headers.get('Content-Type') || '';
 
     if (contentType.includes('application/pdf')) {
+      // ── Éxito: descargar el PDF ──────────────────────────────────────────
       const blob = await res.blob();
       const filename = res.headers.get('X-Filename') || 'Dossier_Premium.pdf';
       const url = URL.createObjectURL(blob);
@@ -991,6 +992,7 @@ async function submitForm() {
       document.getElementById('p-success').classList.add('active');
       window.scrollTo({top:0,behavior:'smooth'});
     } else {
+      // ── Error: el servidor devolvió JSON con el mensaje de error ─────────
       let msg = 'Error desconocido';
       try {
         const data = await res.json();
@@ -1019,4 +1021,3 @@ function toast(msg) {
 </script>
 </body>
 </html>
-
