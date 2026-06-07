@@ -973,26 +973,34 @@ async function submitForm() {
 
   try {
     const res = await fetch('/generar-dossier', { method:'POST', body:fd });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({error: 'Error del servidor'}));
-      throw new Error(err.error || 'Error desconocido');
+    const contentType = res.headers.get('Content-Type') || '';
+
+    if (contentType.includes('application/pdf')) {
+      const blob = await res.blob();
+      const filename = res.headers.get('X-Filename') || 'Dossier_Premium.pdf';
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+
+      document.getElementById('loadingOverlay').classList.remove('active');
+      document.getElementById('p5').classList.remove('active');
+      document.getElementById('p-success').classList.add('active');
+      window.scrollTo({top:0,behavior:'smooth'});
+    } else {
+      let msg = 'Error desconocido';
+      try {
+        const data = await res.json();
+        msg = data.error || msg;
+      } catch(_) {
+        const text = await res.text().catch(() => '');
+        msg = text.substring(0, 200) || msg;
+      }
+      throw new Error(msg);
     }
-    // Descargar el PDF directamente en el navegador
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const cd = res.headers.get('Content-Disposition') || '';
-    const fnMatch = cd.match(/filename="?([^"]+)"?/);
-    a.download = fnMatch ? fnMatch[1] : 'Dossier_Premium.pdf';
-    a.href = url;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    document.getElementById('loadingOverlay').classList.remove('active');
-    document.getElementById('p5').classList.remove('active');
-    document.getElementById('p-success').classList.add('active');
-    window.scrollTo({top:0,behavior:'smooth'});
   } catch(e) {
     document.getElementById('loadingOverlay').classList.remove('active');
     document.getElementById('btnGenerate').disabled = false;
