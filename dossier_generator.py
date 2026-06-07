@@ -1,12 +1,7 @@
-"""
-Motor PDF Premium v3 — Dossier Inmobiliario
-Híbrido: diseño del HTML template del usuario + gráficos del PDF anterior.
-- Radar SVG puro (sin dependencias externas)
-- Barras de puntuación SVG con relleno dorado
-- Google Fonts (Cormorant Garamond + Inter)
-- Paleta pearl/champagne/ink original
-- Doble marco dorado + gradientes radiales
-- Elemento decorativo orbital
+ """
+Motor PDF Premium v4 — Dossier Inmobiliario
+Rediseño completo: letras grandes, fondos arquitectónicos, cards visibles,
+habitaciones en descripción, servicios ampliados, gráficos grandes.
 """
 import base64, math, os
 from datetime import datetime
@@ -59,110 +54,93 @@ def _photo_b64(path, max_w=1400, q=82):
 
 # ─── SVG CHARTS ───────────────────────────────────────────────────────────────
 
-def _svg_radar(labels, values, size=160):
-    """Gráfico radar/araña en SVG puro — compatible con WeasyPrint."""
+def _svg_radar(labels, values, size=200):
     n = len(labels)
     if n < 3:
         return ''
     cx = cy = size / 2
-    r = size / 2 - 28
-
+    r = size / 2 - 34
     parts = []
-
-    # Niveles de la cuadrícula
     for level in [0.25, 0.5, 0.75, 1.0]:
         pts = []
         for i in range(n):
             ang = -math.pi / 2 + 2 * math.pi * i / n
             pts.append(f"{cx + r*level*math.cos(ang):.1f},{cy + r*level*math.sin(ang):.1f}")
-        fill = 'rgba(215,181,109,0.07)' if level == 1.0 else 'none'
-        parts.append(f'<polygon points="{" ".join(pts)}" fill="{fill}" stroke="rgba(215,181,109,0.30)" stroke-width="0.6"/>')
-
-    # Ejes radiales
+        fill = 'rgba(215,181,109,0.08)' if level == 1.0 else 'none'
+        parts.append(f'<polygon points="{" ".join(pts)}" fill="{fill}" stroke="rgba(215,181,109,0.35)" stroke-width="0.7"/>')
     for i in range(n):
         ang = -math.pi / 2 + 2 * math.pi * i / n
         x2 = cx + r * math.cos(ang)
         y2 = cy + r * math.sin(ang)
-        parts.append(f'<line x1="{cx:.1f}" y1="{cy:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" stroke="rgba(36,52,71,0.18)" stroke-width="0.5"/>')
-
-    # Polígono de datos
+        parts.append(f'<line x1="{cx:.1f}" y1="{cy:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" stroke="rgba(36,52,71,0.20)" stroke-width="0.6"/>')
     data_pts = []
     for i in range(n):
         ang = -math.pi / 2 + 2 * math.pi * i / n
         v = min(max(float(values[i]) / 10.0, 0), 1)
         data_pts.append(f"{cx + r*v*math.cos(ang):.1f},{cy + r*v*math.sin(ang):.1f}")
-    parts.append(f'<polygon points="{" ".join(data_pts)}" fill="rgba(215,181,109,0.25)" stroke="#d7b56d" stroke-width="1.8" stroke-linejoin="round"/>')
-
-    # Puntos de datos
+    parts.append(f'<polygon points="{" ".join(data_pts)}" fill="rgba(215,181,109,0.28)" stroke="#d7b56d" stroke-width="2.2" stroke-linejoin="round"/>')
     for i in range(n):
         ang = -math.pi / 2 + 2 * math.pi * i / n
         v = min(max(float(values[i]) / 10.0, 0), 1)
         px = cx + r * v * math.cos(ang)
         py = cy + r * v * math.sin(ang)
-        parts.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="3.5" fill="#d7b56d" stroke="white" stroke-width="1.2"/>')
-
-    # Etiquetas
+        parts.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="4.2" fill="#d7b56d" stroke="white" stroke-width="1.5"/>')
     for i, label in enumerate(labels):
         ang = -math.pi / 2 + 2 * math.pi * i / n
-        lx = cx + (r + 16) * math.cos(ang)
-        ly = cy + (r + 16) * math.sin(ang)
+        lx = cx + (r + 20) * math.cos(ang)
+        ly = cy + (r + 20) * math.sin(ang)
         anchor = 'middle'
-        if lx < cx - 8:
-            anchor = 'end'
-        elif lx > cx + 8:
-            anchor = 'start'
+        if lx < cx - 8: anchor = 'end'
+        elif lx > cx + 8: anchor = 'start'
+        val_str = f"{values[i]:.1f}" if isinstance(values[i], float) else str(values[i])
         parts.append(
-            f'<text x="{lx:.1f}" y="{ly + 3:.1f}" '
-            f'text-anchor="{anchor}" '
-            f'font-family="Inter,Arial,sans-serif" font-size="6.5" '
-            f'fill="#9b7638" font-weight="700" letter-spacing="0.8">'
-            f'{label.upper()}</text>'
+            f'<text x="{lx:.1f}" y="{ly+3:.1f}" text-anchor="{anchor}" '
+            f'font-family="Inter,Arial,sans-serif" font-size="8" '
+            f'fill="#7a5c2a" font-weight="800" letter-spacing="0.6">{label.upper()}</text>'
         )
-
+        parts.append(
+            f'<text x="{lx:.1f}" y="{ly+13:.1f}" text-anchor="{anchor}" '
+            f'font-family="Inter,Arial,sans-serif" font-size="9" '
+            f'fill="#223246" font-weight="700">{val_str}</text>'
+        )
     return (
         f'<svg viewBox="0 0 {size} {size}" width="{size}" height="{size}" '
         f'xmlns="http://www.w3.org/2000/svg">{"".join(parts)}</svg>'
     )
 
 
-def _svg_bar(label, value, max_val=10, width=165, color='#d7b56d'):
-    """Barra horizontal SVG con relleno dorado — estilo del PDF anterior."""
-    h = 22
-    lbl_w = 52
-    val_w = 22
+def _svg_bar(label, value, max_val=10, width=200, color='#d7b56d'):
+    h = 28
+    lbl_w = 68
+    val_w = 28
     bar_w = width - lbl_w - val_w - 4
     fill_w = bar_w * min(float(value) / max_val, 1)
-    pct_int = int(fill_w)
+    score_color = '#2c7a2c' if float(value) >= 8 else ('#d7b56d' if float(value) >= 6 else '#c05050')
     return (
-        f'<svg viewBox="0 0 {width} {h}" width="{width}" height="{h}" '
-        f'xmlns="http://www.w3.org/2000/svg">'
-        f'<text x="0" y="14" font-family="Inter,Arial,sans-serif" font-size="6.5" '
-        f'fill="#9b7638" font-weight="800" letter-spacing="0.8">{label.upper()}</text>'
-        f'<rect x="{lbl_w}" y="7" width="{bar_w}" height="7" rx="3.5" fill="rgba(36,52,71,0.10)"/>'
-        f'<rect x="{lbl_w}" y="7" width="{fill_w:.1f}" height="7" rx="3.5" fill="{color}"/>'
-        f'<text x="{width}" y="14" font-family="Inter,Arial,sans-serif" font-size="7.5" '
-        f'fill="#223246" font-weight="700" text-anchor="end">{_num(value)}</text>'
+        f'<svg viewBox="0 0 {width} {h}" width="{width}" height="{h}" xmlns="http://www.w3.org/2000/svg">'
+        f'<text x="0" y="17" font-family="Inter,Arial,sans-serif" font-size="8" '
+        f'fill="#7a5c2a" font-weight="800" letter-spacing="0.8">{label.upper()}</text>'
+        f'<rect x="{lbl_w}" y="8" width="{bar_w}" height="9" rx="4.5" fill="rgba(36,52,71,0.12)"/>'
+        f'<rect x="{lbl_w}" y="8" width="{fill_w:.1f}" height="9" rx="4.5" fill="{color}"/>'
+        f'<text x="{width}" y="17" font-family="Inter,Arial,sans-serif" font-size="10" '
+        f'fill="#223246" font-weight="800" text-anchor="end">{_num(value)}</text>'
         f'</svg>'
     )
 
 
-def _svg_donut(pct, label, size=80, color='#d7b56d'):
-    """Mini donut chart SVG para métricas de inversión."""
+def _svg_donut(pct, label, size=96, color='#d7b56d'):
     cx = cy = size / 2
-    r = size / 2 - 10
+    r = size / 2 - 12
     circ = 2 * math.pi * r
     dash = circ * min(float(pct) / 100.0, 1)
     gap = circ - dash
     return (
-        f'<svg viewBox="0 0 {size} {size}" width="{size}" height="{size}" '
-        f'xmlns="http://www.w3.org/2000/svg">'
-        f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="rgba(36,52,71,0.12)" stroke-width="6"/>'
-        f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="{color}" stroke-width="6" '
-        f'stroke-dasharray="{dash:.2f} {gap:.2f}" '
-        f'stroke-dashoffset="{circ/4:.2f}" stroke-linecap="round"/>'
+        f'<svg viewBox="0 0 {size} {size}" width="{size}" height="{size}" xmlns="http://www.w3.org/2000/svg">'
+        f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="rgba(36,52,71,0.10)" stroke-width="8"/>'
+        f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="{color}" stroke-width="8" '
+        f'stroke-dasharray="{dash:.2f} {gap:.2f}" stroke-dashoffset="{circ/4:.2f}" stroke-linecap="round"/>'
         f'<text x="{cx}" y="{cy+3}" text-anchor="middle" dominant-baseline="middle" '
-        f'font-family="Inter,Arial,sans-serif" font-size="11" font-weight="700" fill="#223246">'
-        f'{label}</text>'
+        f'font-family="Inter,Arial,sans-serif" font-size="14" font-weight="800" fill="#223246">{label}</text>'
         f'</svg>'
     )
 
@@ -193,6 +171,31 @@ IMGS = {
     'terrace':    _U+'1555041469-68ad9154f720?fm=jpg&q=80&w=700',
     'market':     _U+'1481437156560-3205f6a55735?fm=jpg&q=80&w=700',
     'dining':     _U+'1517248135467-4c7edcad34c4?fm=jpg&q=80&w=700',
+    'arch1':      _U+'1493809842364-78817add7ffb?fm=jpg&q=60&w=900',
+    'arch2':      _U+'1524230659092-07914300325d?fm=jpg&q=60&w=900',
+    'arch3':      _U+'1416331108676-a22ccb276e35?fm=jpg&q=60&w=900',
+    'arch4':      _U+'1512917774080-9991f1c4c750?fm=jpg&q=60&w=900',
+    'arch5':      _U+'1560448204-e02f11c3d0e2?fm=jpg&q=60&w=900',
+    'arch6':      _U+'1502005097973-6a7082348e28?fm=jpg&q=60&w=900',
+    'living':     _U+'1555041469-68ad9154f720?fm=jpg&q=80&w=700',
+    'kitchen':    _U+'1556909114-f6e7ad7d3136?fm=jpg&q=80&w=700',
+    'bedroom':    _U+'1540518614846-7eded433c457?fm=jpg&q=80&w=700',
+    'bathroom':   _U+'1552321554-5fefe8c9ef14?fm=jpg&q=80&w=700',
+}
+
+# Page background images — architectural, low opacity
+PAGE_BG = {
+    'summary':    IMGS['arch1'],
+    'ficha':      IMGS['arch2'],
+    'commercial': IMGS['arch3'],
+    'location':   IMGS['arch4'],
+    'services':   IMGS['arch5'],
+    'investment': IMGS['arch6'],
+    'advantages': IMGS['arch1'],
+    'value':      IMGS['arch2'],
+    'strategic':  IMGS['arch3'],
+    'lifestyle':  IMGS['arch4'],
+    'gallery':    IMGS['arch5'],
 }
 
 def _zone_imgs(data, lang):
@@ -221,8 +224,7 @@ def _zone_imgs(data, lang):
         ('skyline', 'Panoramica', 'Skyline'),
     ]
     for key, lbl_es, lbl_en in defaults:
-        if len(pool) >= 6:
-            break
+        if len(pool) >= 6: break
         entry = (IMGS[key], lbl_es if es else lbl_en)
         if entry not in pool:
             pool.append(entry)
@@ -249,18 +251,20 @@ def _css():
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-    --ink:       #223246;
-    --ink-soft:  #405166;
-    --slate:     #52657a;
-    --pearl:     #fbf7ef;
-    --ivory:     #fffaf2;
-    --mist:      #edf5f8;
+    --ink:       #1e2f40;
+    --ink-soft:  #374f66;
+    --slate:     #4d6275;
+    --pearl:     #fbf8f2;
+    --ivory:     #fffcf5;
+    --mist:      #eef5f8;
     --sky:       #dceef6;
-    --champagne: #d7b56d;
-    --champ-soft:#f1dfad;
-    --bronze:    #9b7638;
-    --line:      rgba(36,52,71,0.14);
-    --line-gold: rgba(215,181,109,0.46);
+    --champagne: #c9a84c;
+    --champ-soft:#e8cc80;
+    --bronze:    #8a6828;
+    --cream:     #f5ecd7;
+    --warm:      #fdf4e3;
+    --line:      rgba(30,47,64,0.14);
+    --line-gold: rgba(201,168,76,0.50);
 }
 
 body {
@@ -268,11 +272,11 @@ body {
     background: var(--pearl);
     color: var(--ink);
     width: 210mm;
+    font-size: 10pt;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
 }
 
-/* ── PAGE SHELL ── */
 .page {
     position: relative;
     width: 210mm;
@@ -280,77 +284,89 @@ body {
     overflow: hidden;
     page-break-after: always;
     background:
-        radial-gradient(circle at 88% 6%, rgba(215,181,109,0.18), transparent 28%),
-        radial-gradient(circle at 6% 90%, rgba(183,217,232,0.28), transparent 32%),
-        linear-gradient(135deg, var(--ivory) 0%, var(--pearl) 44%, var(--mist) 100%);
+        radial-gradient(circle at 88% 6%, rgba(201,168,76,0.15), transparent 30%),
+        radial-gradient(circle at 6% 92%, rgba(183,217,232,0.22), transparent 34%),
+        linear-gradient(135deg, var(--ivory) 0%, var(--pearl) 46%, var(--mist) 100%);
     isolation: isolate;
 }
 .page:last-child { page-break-after: auto; }
 
-/* double gold border — taken from user's template */
+/* Subtle architectural background image */
+.page-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+}
+.page-bg img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.055;
+    mix-blend-mode: multiply;
+}
+
+/* Double gold border frames */
 .page::before {
     content: '';
     position: absolute;
     inset: 9mm;
-    border: 1px solid rgba(215,181,109,0.34);
+    border: 1px solid rgba(201,168,76,0.40);
     pointer-events: none;
-    z-index: 8;
+    z-index: 9;
 }
 .page::after {
     content: '';
     position: absolute;
-    inset: 12mm;
-    border: 1px solid rgba(36,52,71,0.07);
+    inset: 12.5mm;
+    border: 1px solid rgba(30,47,64,0.08);
     pointer-events: none;
-    z-index: 8;
+    z-index: 9;
 }
 .no-frame::before, .no-frame::after { display: none; }
 
-/* ── GRID OVERLAY ── */
 .decor-grid {
     position: absolute;
     inset: 0;
     z-index: 1;
     pointer-events: none;
-    opacity: 0.15;
+    opacity: 0.10;
     background:
-        linear-gradient(90deg, rgba(36,52,71,0.10) 1px, transparent 1px),
-        linear-gradient(180deg, rgba(36,52,71,0.08) 1px, transparent 1px);
-    background-size: 18mm 18mm;
+        linear-gradient(90deg, rgba(30,47,64,0.08) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(30,47,64,0.06) 1px, transparent 1px);
+    background-size: 20mm 20mm;
 }
 
-/* ── ORBITAL DECORATION — from user's template ── */
 .decor-orbit {
     position: absolute;
     z-index: 2;
-    right: -22mm;
-    top: 20mm;
-    width: 112mm;
-    height: 112mm;
+    right: -20mm;
+    top: 18mm;
+    width: 108mm;
+    height: 108mm;
     border-radius: 50%;
-    border: 1px solid rgba(215,181,109,0.22);
+    border: 1px solid rgba(201,168,76,0.20);
     pointer-events: none;
 }
 .decor-orbit::after {
     content: '';
     position: absolute;
-    inset: 18mm;
+    inset: 16mm;
     border-radius: 50%;
-    border: 1px solid rgba(36,52,71,0.08);
+    border: 1px solid rgba(30,47,64,0.07);
 }
 
-/* ── INNER ── */
 .inner {
     position: relative;
-    z-index: 3;
-    padding: 17mm 18mm 18mm;
+    z-index: 4;
+    padding: 16mm 17mm 17mm;
     min-height: 297mm;
 }
 
-/* ── TYPOGRAPHY — hybrid: Cormorant for headings, Inter for body ── */
+/* ── TYPOGRAPHY ── */
 h1 {
     font-family: 'Cormorant Garamond', Georgia, serif;
-    font-size: 38pt;
+    font-size: 40pt;
     line-height: 0.92;
     letter-spacing: -0.04em;
     font-weight: 700;
@@ -358,16 +374,16 @@ h1 {
 }
 h2 {
     font-family: 'Cormorant Garamond', Georgia, serif;
-    font-size: 24pt;
+    font-size: 25pt;
     line-height: 1.06;
-    letter-spacing: -0.035em;
+    letter-spacing: -0.03em;
     font-weight: 700;
     color: var(--ink);
-    max-width: 150mm;
+    max-width: 155mm;
 }
 h3 {
     font-family: 'Cormorant Garamond', Georgia, serif;
-    font-size: 15pt;
+    font-size: 16pt;
     line-height: 1.15;
     letter-spacing: -0.02em;
     font-weight: 700;
@@ -375,7 +391,7 @@ h3 {
 }
 h4 {
     font-family: 'Inter', Arial, sans-serif;
-    font-size: 6.5pt;
+    font-size: 7.5pt;
     letter-spacing: 0.20em;
     text-transform: uppercase;
     font-weight: 800;
@@ -384,26 +400,25 @@ h4 {
 }
 .lead {
     font-family: 'Inter', Arial, sans-serif;
-    font-size: 10pt;
-    line-height: 1.65;
+    font-size: 11pt;
+    line-height: 1.62;
     letter-spacing: -0.01em;
     color: var(--ink-soft);
-    margin-bottom: 6mm;
-    max-width: 165mm;
+    margin-bottom: 5mm;
     font-weight: 400;
 }
 .text {
     font-family: 'Inter', Arial, sans-serif;
-    font-size: 8pt;
-    line-height: 1.58;
+    font-size: 9.5pt;
+    line-height: 1.60;
     color: var(--slate);
     margin-top: 2mm;
     font-weight: 400;
 }
 .eyebrow {
     font-family: 'Inter', Arial, sans-serif;
-    font-size: 7pt;
-    letter-spacing: 0.26em;
+    font-size: 8pt;
+    letter-spacing: 0.24em;
     text-transform: uppercase;
     font-weight: 900;
     color: var(--bronze);
@@ -411,122 +426,129 @@ h4 {
 }
 .micro {
     font-family: 'Inter', Arial, sans-serif;
-    font-size: 5.5pt;
+    font-size: 7pt;
     letter-spacing: 0.18em;
     text-transform: uppercase;
     font-weight: 700;
-    color: rgba(36,52,71,0.45);
+    color: rgba(30,47,64,0.48);
 }
 
-/* ── DECORATIVES ── */
 .gold-line {
-    width: 22mm;
-    height: 1.2mm;
+    width: 24mm;
+    height: 1.4mm;
     border-radius: 99px;
     background: linear-gradient(90deg, var(--champagne), var(--champ-soft), var(--bronze));
-    margin-bottom: 4.5mm;
+    margin-bottom: 4mm;
 }
 .divider {
     width: 100%;
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(215,181,109,0.55), rgba(36,52,71,0.09), transparent);
-    margin: 5.5mm 0;
+    background: linear-gradient(90deg, transparent, rgba(201,168,76,0.60), rgba(30,47,64,0.10), transparent);
+    margin: 5mm 0;
 }
 
-/* ── SECTION HEAD ── */
 .section-head {
     display: grid;
     grid-template-columns: 1fr auto;
-    gap: 10mm;
+    gap: 8mm;
     align-items: start;
-    padding-top: 4.5mm;
-    border-top: 1px solid var(--line-gold);
-    margin-bottom: 8mm;
+    padding-top: 4mm;
+    border-top: 1.5px solid var(--line-gold);
+    margin-bottom: 7mm;
 }
 .section-num {
     font-family: 'Inter', Arial, sans-serif;
-    font-size: 6.5pt;
+    font-size: 7pt;
     letter-spacing: 0.20em;
     text-transform: uppercase;
     font-weight: 900;
-    color: rgba(36,52,71,0.35);
+    color: rgba(30,47,64,0.38);
     padding: 2.5mm 3mm;
-    border: 1px solid rgba(215,181,109,0.38);
-    background: rgba(255,255,255,0.60);
+    border: 1px solid rgba(201,168,76,0.42);
+    background: rgba(255,255,255,0.70);
     white-space: nowrap;
-    text-align: right;
 }
 
-/* ── FOOTER ── */
 .footer {
     position: absolute;
-    left: 18mm;
-    right: 18mm;
-    bottom: 6mm;
+    left: 17mm;
+    right: 17mm;
+    bottom: 5.5mm;
     display: flex;
     justify-content: space-between;
     font-family: 'Inter', Arial, sans-serif;
-    font-size: 5.5pt;
-    letter-spacing: 0.18em;
+    font-size: 7pt;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
     font-weight: 700;
-    color: rgba(36,52,71,0.40);
-    padding-top: 2.5mm;
-    border-top: 1px solid rgba(215,181,109,0.26);
+    color: rgba(30,47,64,0.42);
+    padding-top: 2mm;
+    border-top: 1px solid rgba(201,168,76,0.28);
 }
 
-/* ── GRIDS ── */
 .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
 .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4mm; }
 .g4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 3.5mm; }
 
-/* ── CARDS ── */
+/* ── CARDS — paleta cálida del template original ── */
 .card {
-    padding: 5mm;
-    border: 1px solid rgba(36,52,71,0.11);
-    background: linear-gradient(135deg, rgba(255,255,255,0.90), rgba(251,247,239,0.72));
-    border-left: 1.2mm solid var(--champagne);
+    padding: 5.5mm 5mm;
+    border: 1px solid rgba(201,168,76,0.28);
+    background: linear-gradient(135deg, var(--warm) 0%, rgba(253,244,227,0.85) 100%);
+    border-left: 2px solid var(--champagne);
 }
+.card h3 { color: var(--ink); }
+.card h4 { color: var(--bronze); }
+.card .text { color: var(--slate); font-size: 9.5pt; }
+
 .card.stone {
-    background: linear-gradient(135deg, rgba(239,231,218,0.96), rgba(255,250,242,0.80));
-    border-color: rgba(155,118,56,0.18);
+    background: linear-gradient(135deg, #f0e8d6 0%, #f8f2e6 100%);
+    border-color: rgba(138,104,40,0.25);
+    border-left-color: var(--bronze);
 }
 .card.sky {
-    background: linear-gradient(135deg, rgba(237,245,248,0.96), rgba(220,238,246,0.82));
-    border-color: rgba(85,132,156,0.18);
+    background: linear-gradient(135deg, #e8f4f9 0%, #f0f8fc 100%);
+    border-color: rgba(85,140,170,0.22);
+    border-left-color: #5c9ab8;
 }
+.card.sky h4 { color: #3d7a96; }
+.card.sky .text { color: #2d5e75; }
+
 .card.dark {
-    background: linear-gradient(135deg, #2c3e52, #384d65);
+    background: linear-gradient(135deg, #1e3248, #284057);
     border: none;
-    border-left: 1.2mm solid var(--champ-soft);
+    border-left: 2px solid var(--champ-soft);
     color: #fff;
 }
-.card.dark .text { color: rgba(255,255,255,0.78); }
+.card.dark .text { color: rgba(255,255,255,0.88); font-size: 9.5pt; }
 .card.dark h4    { color: var(--champ-soft); }
 .card.dark h3    { color: #fff; }
+
 .card.gold {
-    background: linear-gradient(135deg, #c9a44a, #a87e32);
+    background: linear-gradient(135deg, #c09038, #a07028);
     border: none;
-    border-left: 1.2mm solid rgba(255,255,255,0.45);
+    border-left: 2px solid rgba(255,255,255,0.50);
     color: #fff;
 }
-.card.gold .text { color: rgba(255,255,255,0.84); }
-.card.gold h4    { color: #fff3cc; }
+.card.gold .text { color: rgba(255,255,255,0.90); }
+.card.gold h4    { color: #fff0c0; }
 
-/* ── KPIs ── */
+/* KPI boxes */
 .kpi-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 4mm; margin: 5mm 0; }
 .kpi {
-    padding: 5mm 4mm;
-    background: rgba(255,255,255,0.90);
-    border: 1px solid rgba(36,52,71,0.11);
+    padding: 5.5mm 4mm;
+    background: linear-gradient(135deg, var(--warm), var(--pearl));
+    border: 1px solid rgba(201,168,76,0.30);
+    border-left: 2px solid var(--champagne);
 }
 .kpi.dark {
-    background: linear-gradient(135deg, #2c3e52, #384d65);
+    background: linear-gradient(135deg, #1e3248, #284057);
     border: none;
+    border-left: 2px solid var(--champ-soft);
 }
 .kpi .num {
     font-family: 'Cormorant Garamond', Georgia, serif;
-    font-size: 20pt;
+    font-size: 22pt;
     line-height: 1;
     letter-spacing: -0.04em;
     font-weight: 700;
@@ -536,349 +558,296 @@ h4 {
 .kpi .lbl {
     margin-top: 3mm;
     font-family: 'Inter', Arial, sans-serif;
-    font-size: 5.8pt;
+    font-size: 7pt;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     font-weight: 700;
-    color: rgba(36,52,71,0.60);
+    color: rgba(30,47,64,0.58);
 }
-.kpi.dark .lbl { color: rgba(255,255,255,0.75); }
+.kpi.dark .lbl { color: rgba(255,255,255,0.80); }
 
-/* ── NOTE / CALLOUT ── */
 .note {
-    padding: 4.5mm 5mm;
-    background: linear-gradient(135deg, rgba(255,255,255,0.90), rgba(241,223,173,0.16));
-    border-left: 1.6mm solid var(--champagne);
+    padding: 5mm 6mm;
+    background: linear-gradient(135deg, var(--warm), rgba(241,229,186,0.28));
+    border-left: 2.5mm solid var(--champagne);
     font-family: 'Inter', Arial, sans-serif;
-    font-size: 8.5pt;
-    line-height: 1.56;
+    font-size: 9.5pt;
+    line-height: 1.58;
     color: var(--ink);
     margin: 5mm 0;
 }
+.note strong { color: var(--ink); }
 
-/* ── TABLE ── */
 .dtable {
     width: 100%;
     border-collapse: collapse;
-    background: rgba(255,255,255,0.86);
-    border: 1px solid rgba(36,52,71,0.11);
+    background: rgba(255,252,245,0.95);
+    border: 1px solid rgba(201,168,76,0.25);
 }
 .dtable th {
     text-align: left;
-    padding: 3mm 4mm;
+    padding: 3.5mm 4mm;
     font-family: 'Inter', Arial, sans-serif;
-    font-size: 5.8pt;
+    font-size: 7pt;
     letter-spacing: 0.16em;
     text-transform: uppercase;
     font-weight: 800;
     color: var(--bronze);
-    background: linear-gradient(90deg, rgba(241,223,173,0.38), rgba(237,245,248,0.62));
-    border-bottom: 1px solid rgba(36,52,71,0.10);
+    background: linear-gradient(90deg, rgba(240,232,214,0.60), rgba(237,245,248,0.60));
+    border-bottom: 1px solid rgba(201,168,76,0.25);
 }
 .dtable td {
-    padding: 2.8mm 4mm;
+    padding: 3mm 4mm;
     font-family: 'Inter', Arial, sans-serif;
-    font-size: 8pt;
-    line-height: 1.45;
+    font-size: 9.5pt;
+    line-height: 1.46;
     color: var(--ink-soft);
-    border-top: 1px solid rgba(36,52,71,0.06);
+    border-top: 1px solid rgba(201,168,76,0.14);
     vertical-align: top;
 }
 .dtable td:first-child {
-    width: 36%;
+    width: 38%;
     font-weight: 700;
     color: var(--ink);
 }
 
-/* ── IMAGES ── */
 .img-box {
     overflow: hidden;
-    border: 1px solid rgba(36,52,71,0.10);
+    border: 1px solid rgba(30,47,64,0.12);
 }
 .img-box img { display: block; width: 100%; object-fit: cover; }
 .img-cap {
-    padding: 2mm 3mm;
-    background: rgba(255,255,255,0.93);
+    padding: 2.5mm 3.5mm;
+    background: rgba(255,252,245,0.96);
     font-family: 'Inter', Arial, sans-serif;
-    font-size: 5.5pt;
+    font-size: 7pt;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     font-weight: 700;
     color: var(--ink);
-    border-top: 1px solid rgba(215,181,109,0.26);
+    border-top: 1px solid rgba(201,168,76,0.28);
 }
 
-/* ── VISUAL GALLERY ── */
-.vgallery { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3.5mm; margin: 5mm 0; }
-.vitem { border: 1px solid rgba(36,52,71,0.11); overflow: hidden; }
-.vitem img { display: block; width: 100%; height: 32mm; object-fit: cover; }
+/* Room grid */
+.room-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3.5mm; margin: 4mm 0; }
+.room-item { border: 1px solid rgba(201,168,76,0.25); overflow: hidden; background: var(--warm); }
+.room-item img { display: block; width: 100%; height: 36mm; object-fit: cover; }
+.room-cap {
+    padding: 2.5mm 3mm;
+    background: linear-gradient(135deg, var(--warm), var(--ivory));
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 7.5pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 800;
+    color: var(--bronze);
+    border-top: 1px solid rgba(201,168,76,0.25);
+}
+
+.vgallery { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3.5mm; margin: 4mm 0; }
+.vitem { border: 1px solid rgba(201,168,76,0.22); overflow: hidden; background: var(--warm); }
+.vitem img { display: block; width: 100%; height: 34mm; object-fit: cover; }
 .vcap {
     padding: 2mm 3mm;
-    background: rgba(255,255,255,0.93);
+    background: linear-gradient(135deg, var(--warm), var(--ivory));
     font-family: 'Inter', Arial, sans-serif;
-    font-size: 5.5pt;
+    font-size: 7pt;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     font-weight: 700;
     color: var(--ink);
 }
 
-/* ── SCORE BAR WRAPPER ── */
-.bars-block { display: flex; flex-direction: column; gap: 2.5mm; }
-.bar-row { display: flex; align-items: center; gap: 3mm; }
+.bars-block { display: flex; flex-direction: column; gap: 3mm; }
 
-/* ── ADVANTAGE ── */
 .adv {
     display: grid;
-    grid-template-columns: 9mm 1fr;
+    grid-template-columns: 10mm 1fr;
     gap: 3.5mm;
-    padding: 4mm;
-    background: rgba(255,255,255,0.88);
-    border: 1px solid rgba(36,52,71,0.11);
+    padding: 4.5mm;
+    background: linear-gradient(135deg, var(--warm), var(--pearl));
+    border: 1px solid rgba(201,168,76,0.28);
+    border-left: 2px solid var(--champagne);
     align-items: start;
 }
 .adv-n {
-    width: 8mm;
-    height: 8mm;
-    border-radius: 50%;
+    width: 9mm; height: 9mm; border-radius: 50%;
     background: linear-gradient(135deg, var(--champagne), var(--bronze));
     color: #fff;
     font-family: 'Inter', Arial, sans-serif;
-    font-size: 6pt;
-    font-weight: 900;
-    text-align: center;
-    line-height: 8mm;
-    flex-shrink: 0;
+    font-size: 7pt; font-weight: 900;
+    text-align: center; line-height: 9mm; flex-shrink: 0;
 }
+.adv h3 { color: var(--ink); font-size: 14pt; }
+.adv .text { color: var(--slate); }
 
-/* ── TIMELINE ── */
 .timeline { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 4mm; margin: 5mm 0; }
 .step {
-    padding: 4mm;
-    background: rgba(255,255,255,0.88);
-    border: 1px solid rgba(36,52,71,0.11);
+    padding: 4.5mm;
+    background: linear-gradient(135deg, var(--warm), var(--pearl));
+    border: 1px solid rgba(201,168,76,0.28);
 }
 .step-n {
     font-family: 'Cormorant Garamond', Georgia, serif;
-    font-size: 18pt;
-    line-height: 1;
-    color: rgba(215,181,109,0.65);
-    font-weight: 700;
-    margin-bottom: 3mm;
+    font-size: 20pt; line-height: 1;
+    color: rgba(201,168,76,0.70); font-weight: 700; margin-bottom: 3mm;
 }
+.step h3 { font-size: 13pt; color: var(--ink); }
+.step .text { color: var(--slate); }
 
-/* ── PHOTO STRIP ── */
-.photo-strip { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 4mm; margin: 5mm 0; }
+.photo-strip { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 4mm; margin: 4mm 0; }
 .photo-stack { display: grid; gap: 4mm; grid-template-rows: 1fr 1fr; }
 
-/* ── COVER ── */
-.cover {
-    background: #0a1624;
+/* Service analysis cards */
+.svc-card {
+    padding: 4mm 5mm;
+    background: linear-gradient(135deg, var(--warm), var(--ivory));
+    border: 1px solid rgba(201,168,76,0.25);
+    border-top: 2.5px solid var(--champagne);
+}
+.svc-card h4 { color: var(--bronze); margin-bottom: 1.5mm; }
+.svc-card .text { color: var(--slate); font-size: 8.5pt; }
+.svc-score {
+    display: inline-block;
+    padding: 1.5mm 3mm;
+    background: var(--champagne);
     color: #fff;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 8pt; font-weight: 800;
+    border-radius: 2mm;
+    margin-top: 2.5mm;
 }
-.cover-photo {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-}
-.cover-photo img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    opacity: 0.40;
-}
+
+/* Cover */
+.cover { background: #08121f; color: #fff; }
+.cover-photo { position: absolute; inset: 0; z-index: 1; }
+.cover-photo img { width: 100%; height: 100%; object-fit: cover; opacity: 0.42; }
 .cover-overlay {
-    position: absolute;
-    inset: 0;
-    z-index: 2;
+    position: absolute; inset: 0; z-index: 2;
     background:
-        linear-gradient(100deg, rgba(6,13,24,0.90) 0%, rgba(12,24,40,0.55) 55%, rgba(12,24,40,0.16) 100%),
-        linear-gradient(180deg, rgba(6,13,24,0.08) 0%, rgba(6,13,24,0.65) 100%);
+        linear-gradient(100deg, rgba(4,10,20,0.92) 0%, rgba(10,20,36,0.55) 55%, rgba(10,20,36,0.18) 100%),
+        linear-gradient(180deg, rgba(4,10,20,0.08) 0%, rgba(4,10,20,0.68) 100%);
 }
 .cover-inner {
-    position: relative;
-    z-index: 5;
-    padding: 18mm 20mm 16mm;
+    position: relative; z-index: 5;
+    padding: 17mm 19mm 15mm;
     min-height: 297mm;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
+    display: flex; flex-direction: column; justify-content: space-between;
 }
 .topbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
+    display: flex; justify-content: space-between; align-items: flex-start;
     font-family: 'Inter', Arial, sans-serif;
-    font-size: 5.8pt;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: rgba(255,255,255,0.68);
-    font-weight: 700;
+    font-size: 7pt; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(255,255,255,0.65); font-weight: 700;
 }
 .brand { display: flex; align-items: center; gap: 3mm; }
 .brand-mark {
-    width: 10mm;
-    height: 10mm;
-    border: 1px solid rgba(215,181,109,0.70);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--champ-soft);
-    background: rgba(255,255,255,0.07);
+    width: 11mm; height: 11mm;
+    border: 1px solid rgba(201,168,76,0.70);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--champ-soft); background: rgba(255,255,255,0.07);
     font-family: 'Cormorant Garamond', Georgia, serif;
-    font-size: 9pt;
-    font-weight: 700;
+    font-size: 10pt; font-weight: 700;
 }
 .cover-box {
-    width: 148mm;
-    padding: 7mm 8mm;
-    border: 1px solid rgba(215,181,109,0.36);
-    background: rgba(8,18,30,0.52);
+    width: 152mm;
+    padding: 7mm 9mm;
+    border: 1px solid rgba(201,168,76,0.36);
+    background: rgba(6,14,26,0.55);
 }
 .cover-kicker {
     display: inline-block;
     padding: 2mm 4mm;
-    border: 1px solid rgba(215,181,109,0.52);
+    border: 1px solid rgba(201,168,76,0.54);
     background: rgba(255,255,255,0.07);
     font-family: 'Inter', Arial, sans-serif;
-    font-size: 5.8pt;
-    letter-spacing: 0.24em;
-    text-transform: uppercase;
-    font-weight: 800;
-    color: var(--champ-soft);
-    margin-bottom: 6mm;
+    font-size: 7pt; letter-spacing: 0.24em; text-transform: uppercase;
+    font-weight: 800; color: var(--champ-soft); margin-bottom: 5mm;
 }
-.cover h1 {
-    color: #fff;
-    font-size: 40pt;
-    line-height: 0.92;
-}
-.cover-loc {
-    display: block;
-    color: var(--champ-soft);
-    font-style: italic;
-}
+.cover h1 { color: #fff; font-size: 42pt; line-height: 0.92; }
+.cover-loc { display: block; color: var(--champ-soft); font-style: italic; }
 .cover-copy {
-    margin-top: 7mm;
+    margin-top: 6mm;
     font-family: 'Inter', Arial, sans-serif;
-    font-size: 10.5pt;
-    line-height: 1.52;
-    color: rgba(255,255,255,0.84);
-    max-width: 118mm;
-    font-weight: 400;
+    font-size: 11pt; line-height: 1.55;
+    color: rgba(255,255,255,0.86); max-width: 122mm; font-weight: 400;
 }
-.cover-bottom {
-    display: grid;
-    grid-template-columns: 76mm 1fr;
-    gap: 7mm;
-    align-items: end;
-}
+.cover-bottom { display: grid; grid-template-columns: 80mm 1fr; gap: 7mm; align-items: end; }
 .price-panel {
     padding: 5.5mm 6mm;
-    border: 1px solid rgba(215,181,109,0.60);
-    background: rgba(255,255,255,0.93);
+    border: 1px solid rgba(201,168,76,0.64);
+    background: rgba(255,255,255,0.95);
 }
 .price-lbl {
     font-family: 'Inter', Arial, sans-serif;
-    font-size: 5.8pt;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: var(--bronze);
-    font-weight: 800;
-    margin-bottom: 2mm;
+    font-size: 7pt; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--bronze); font-weight: 800; margin-bottom: 2mm;
 }
 .price-val {
     font-family: 'Cormorant Garamond', Georgia, serif;
-    font-size: 22pt;
-    line-height: 1;
-    font-weight: 700;
-    color: var(--ink);
+    font-size: 24pt; line-height: 1; font-weight: 700; color: var(--ink);
 }
 .tags { display: flex; flex-wrap: wrap; gap: 2mm; justify-content: flex-end; }
 .tag {
-    padding: 2mm 3mm;
-    border: 1px solid rgba(215,181,109,0.46);
+    padding: 2.5mm 3.5mm;
+    border: 1px solid rgba(201,168,76,0.48);
     background: rgba(255,255,255,0.11);
     font-family: 'Inter', Arial, sans-serif;
-    font-size: 5.5pt;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    font-weight: 700;
-    color: rgba(255,255,255,0.88);
-    white-space: nowrap;
+    font-size: 7pt; letter-spacing: 0.14em; text-transform: uppercase;
+    font-weight: 700; color: rgba(255,255,255,0.90); white-space: nowrap;
 }
 
-/* ── FINAL PAGE ── */
-.final {
-    background: #0a1624;
-    color: #fff;
-    position: relative;
-}
+/* Final CTA */
+.final { background: #08121f; color: #fff; position: relative; }
 .final-photo { position: absolute; inset: 0; z-index: 1; }
-.final-photo img { width: 100%; height: 100%; object-fit: cover; opacity: 0.30; }
+.final-photo img { width: 100%; height: 100%; object-fit: cover; opacity: 0.32; }
 .final-overlay {
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    background: linear-gradient(100deg, rgba(6,13,24,0.90) 0%, rgba(12,24,40,0.62) 55%, rgba(12,24,40,0.20) 100%);
+    position: absolute; inset: 0; z-index: 2;
+    background: linear-gradient(100deg, rgba(4,10,20,0.92) 0%, rgba(10,20,36,0.65) 55%, rgba(10,20,36,0.22) 100%);
 }
 .final-inner {
-    position: relative;
-    z-index: 5;
-    padding: 18mm 20mm 16mm;
+    position: relative; z-index: 5;
+    padding: 17mm 19mm 15mm;
     min-height: 297mm;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
+    display: flex; flex-direction: column; justify-content: space-between;
 }
 .final-title {
     font-family: 'Cormorant Garamond', Georgia, serif;
-    font-size: 30pt;
-    line-height: 1.05;
-    font-weight: 700;
-    color: #fff;
-    max-width: 148mm;
-    margin-bottom: 6mm;
+    font-size: 32pt; line-height: 1.05; font-weight: 700;
+    color: #fff; max-width: 150mm; margin-bottom: 5mm;
 }
 .contact-panel {
     padding: 5.5mm 6mm;
-    border: 1px solid rgba(215,181,109,0.44);
-    background: rgba(255,255,255,0.93);
+    border: 1px solid rgba(201,168,76,0.46);
+    background: rgba(255,252,245,0.96);
 }
-.contact-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 5mm;
-    margin-top: 5mm;
-}
-.contact-item { border-left: 1px solid rgba(215,181,109,0.70); padding-left: 3mm; }
+.contact-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5mm; margin-top: 5mm; }
+.contact-item { border-left: 1.5px solid rgba(201,168,76,0.70); padding-left: 3mm; }
 .contact-item span {
     display: block;
     font-family: 'Inter', Arial, sans-serif;
-    font-size: 5.5pt;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: rgba(36,52,71,0.52);
-    font-weight: 700;
-    margin-bottom: 1.5mm;
+    font-size: 7pt; letter-spacing: 0.18em; text-transform: uppercase;
+    color: rgba(30,47,64,0.54); font-weight: 700; margin-bottom: 1.5mm;
 }
 .contact-item strong {
     display: block;
     font-family: 'Inter', Arial, sans-serif;
-    font-size: 9pt;
-    color: var(--ink);
-    font-weight: 700;
+    font-size: 10pt; color: var(--ink); font-weight: 700;
 }
 """
 
 
-# ─── PAGE BUILDERS ────────────────────────────────────────────────────────────
+# ─── PAGE / SECTION HELPERS ───────────────────────────────────────────────────
 
-def _page(content, cls='', orbit=True):
+def _page(content, cls='', orbit=True, bg_key=None):
     orbit_html = '<div class="decor-orbit"></div>' if orbit else ''
+    bg_html = ''
+    if bg_key and bg_key in PAGE_BG:
+        bg_html = f'<div class="page-bg"><img src="{PAGE_BG[bg_key]}" alt=""/></div>'
     return (
         f'<section class="page {cls}">'
         f'<div class="decor-grid"></div>'
+        f'{bg_html}'
         f'{orbit_html}'
         f'{content}'
         f'</section>'
@@ -917,7 +886,8 @@ def _kpi(val, lbl, dark=False):
     )
 
 
-# ── COVER ──────────────────────────────────────────────────────────────────────
+# ─── COVER ────────────────────────────────────────────────────────────────────
+
 def _build_cover(data, content, lang):
     es = lang == 'es'
     fin = content['financials']
@@ -939,22 +909,18 @@ def _build_cover(data, content, lang):
 
     if es:
         kicker = f"{tipo_lbl} · Oportunidad Seleccionada"
-        copy = (f"Inmueble premium en {barrio} — seleccionado por su posicionamiento excepcional, "
-                f"calidad diferencial y potencial de rentabilidad.")
-        if tipo_dossier != 'inversores':
-            copy = f"Tu nuevo hogar en {barrio} — una oportunidad unica de vivir en un entorno excepcional con calidad de vida superior."
+        copy = (f"Inmueble premium en {barrio} seleccionado por su posicionamiento excepcional, "
+                f"calidad diferencial y potencial de rentabilidad destacado.") if tipo_dossier == 'inversores' else \
+               f"Tu nuevo hogar en {barrio} — una oportunidad unica de vivir con calidad de vida superior en {ciudad}."
         dossier_lbl = 'Dossier Privado de Inversion' if tipo_dossier == 'inversores' else 'Dossier Premium Residencial'
-        precio_lbl = 'Precio de salida'
-        acceso = 'Acceso Reservado'
+        precio_lbl = 'Precio de salida'; acceso = 'Acceso Reservado'
     else:
         kicker = f"{tipo_lbl} · Selected Opportunity"
-        copy = (f"Premium property in {barrio} — selected for exceptional positioning, "
-                f"differential quality and return potential.")
-        if tipo_dossier != 'inversores':
-            copy = f"Your new home in {barrio} — a unique opportunity to live in an exceptional environment."
+        copy = (f"Premium property in {barrio} selected for exceptional positioning, "
+                f"differential quality and outstanding return potential.") if tipo_dossier == 'inversores' else \
+               f"Your new home in {barrio} — a unique opportunity to live with superior quality of life in {ciudad}."
         dossier_lbl = 'Private Investment Dossier' if tipo_dossier == 'inversores' else 'Premium Residential Dossier'
-        precio_lbl = 'Asking price'
-        acceso = 'Restricted Access'
+        precio_lbl = 'Asking price'; acceso = 'Restricted Access'
 
     tags_list = [tipo_lbl]
     if m2: tags_list.append(f"{m2} m2")
@@ -983,11 +949,11 @@ def _build_cover(data, content, lang):
         f'    <div class="price-panel">'
         f'      <div class="price-lbl">{precio_lbl}</div>'
         f'      <div class="price-val">{precio}</div>'
-        f'      <p class="text" style="margin-top:2mm; color:#52657a;">{subtexto}</p>'
+        f'      <p class="text" style="margin-top:2mm; color:#52657a; font-size:9pt;">{subtexto}</p>'
         f'    </div>'
         f'    <div>'
         f'      <div class="tags">{tags_html}</div>'
-        f'      <p class="micro" style="text-align:right; margin-top:4mm; color:rgba(255,255,255,0.52);">{agente} &middot; {ciudad} &middot; {anyo}</p>'
+        f'      <p class="micro" style="text-align:right; margin-top:4mm; color:rgba(255,255,255,0.54);">{agente} &middot; {ciudad} &middot; {anyo}</p>'
         f'    </div>'
         f'  </div>'
         f'</div>'
@@ -995,7 +961,8 @@ def _build_cover(data, content, lang):
     )
 
 
-# ── EXECUTIVE SUMMARY ──────────────────────────────────────────────────────────
+# ─── EXECUTIVE SUMMARY ────────────────────────────────────────────────────────
+
 def _build_summary(data, content, lang, n):
     es = lang == 'es'
     fin = content['financials']
@@ -1006,13 +973,14 @@ def _build_summary(data, content, lang, n):
 
     paras = [p.strip() for p in content['exec_summary'].split('\n\n') if p.strip()]
     lead = paras[0] if paras else ''
+    body2 = paras[1] if len(paras) > 1 else ''
 
     if tipo_dossier == 'inversores':
         kpis = [
             (_pct(fin.get('yield_bruto', 0)), 'Yield Bruta' if es else 'Gross Yield', True),
             (_pct(fin.get('roi_5y', 0)), 'ROI 5 Anos' if es else '5Y ROI', False),
             (f"{ps}/10", 'Score Premium', False),
-            (f"{ls.get('atractivo_inversor', 7)}/10", 'Inversor' if es else 'Investor', True),
+            (f"{ls.get('atractivo_inversor', 7)}/10", 'Atractivo' if es else 'Attractiveness', True),
         ]
     else:
         kpis = [
@@ -1029,20 +997,21 @@ def _build_summary(data, content, lang, n):
     tesis = content['conclusions']['texto']
 
     if es:
-        sh_ey = 'Resumen Ejecutivo'
-        sh_tt = 'Una oportunidad inmobiliaria presentada con criterio institucional.'
+        sh_ey = 'Resumen Ejecutivo'; sh_tt = 'Una oportunidad inmobiliaria con analisis de criterio institucional.'
         c1_lbl = 'Propuesta de Valor'; c2_lbl = 'Perfil Inversor' if tipo_dossier == 'inversores' else 'Comprador Ideal'
-        t_lbl = 'Tesis'
+        t_lbl = 'Tesis de inversion'
     else:
-        sh_ey = 'Executive Summary'
-        sh_tt = 'A real estate opportunity with institutional-grade analysis.'
+        sh_ey = 'Executive Summary'; sh_tt = 'A real estate opportunity with institutional-grade analysis.'
         c1_lbl = 'Value Proposition'; c2_lbl = 'Investor Profile' if tipo_dossier == 'inversores' else 'Ideal Buyer'
         t_lbl = 'Investment thesis'
+
+    body2_html = f'<p class="text" style="margin-bottom:3mm;">{body2}</p>' if body2 else ''
 
     return _page(
         f'<div class="inner">'
         f'{_sh(sh_ey, sh_tt, n)}'
         f'<p class="lead">{lead}</p>'
+        f'{body2_html}'
         f'<div class="kpi-row">{kpis_html}</div>'
         f'<div class="divider"></div>'
         f'<div class="g2">'
@@ -1051,11 +1020,13 @@ def _build_summary(data, content, lang, n):
         f'</div>'
         f'<div class="note"><strong>{t_lbl}:</strong> {tesis}</div>'
         f'{_foot(sh_ey, ciudad)}'
-        f'</div>'
+        f'</div>',
+        bg_key='summary'
     )
 
 
-# ── TECHNICAL SHEET ────────────────────────────────────────────────────────────
+# ─── TECHNICAL SHEET ──────────────────────────────────────────────────────────
+
 def _build_ficha(data, content, lang, n):
     es = lang == 'es'
     fin = content['financials']
@@ -1085,7 +1056,7 @@ def _build_ficha(data, content, lang, n):
     accion = (a_es if es else a_en).get(data.get('accion', ''), _s(data.get('accion', '')))
 
     fotos = data.get('foto_paths', [])
-    hero_src = (_photo_b64(fotos[1]) or _photo_b64(fotos[0])) if len(fotos) > 1 else (_photo_b64(fotos[0]) if fotos else IMGS['interior1'])
+    hero_src = (_photo_b64(fotos[1]) or _photo_b64(fotos[0])) if len(fotos) > 1 else (_photo_b64(fotos[0]) if fotos else '')
     if not hero_src: hero_src = IMGS['interior1']
 
     rows = []
@@ -1094,7 +1065,7 @@ def _build_ficha(data, content, lang, n):
             rows.append(f'<tr><td>{k}</td><td>{v}</td></tr>')
 
     if es:
-        sh_ey = 'Ficha Tecnica'; sh_tt = 'Datos esenciales del inmueble.'
+        sh_ey = 'Ficha Tecnica'; sh_tt = 'Datos esenciales del activo inmobiliario.'
         row('Direccion', _s(data.get('direccion')))
         row('Ciudad / Barrio', f"{ciudad} / {barrio}" if barrio != ciudad else ciudad)
         row('Codigo Postal', _s(data.get('cp')))
@@ -1107,9 +1078,9 @@ def _build_ficha(data, content, lang, n):
         row('Estado', estado_lbl)
         row('Cert. Energetico', _s(data.get('certificado_energetico')))
         row('Modalidad', accion)
-        row('Extras', feats_str)
+        row('Equipamiento', feats_str)
     else:
-        sh_ey = 'Technical Sheet'; sh_tt = 'Essential property data.'
+        sh_ey = 'Technical Sheet'; sh_tt = 'Essential data for the real estate asset.'
         row('Address', _s(data.get('direccion')))
         row('City / Area', f"{ciudad} / {barrio}" if barrio != ciudad else ciudad)
         row('Postcode', _s(data.get('cp')))
@@ -1133,64 +1104,105 @@ def _build_ficha(data, content, lang, n):
     return _page(
         f'<div class="inner">'
         f'{_sh(sh_ey, sh_tt, n)}'
-        f'<div class="img-box" style="margin-bottom:4.5mm;">'
-        f'<img src="{hero_src}" style="height:55mm; width:100%; object-fit:cover;" alt=""/>'
-        f'<div class="img-cap">{_s(data.get("direccion"), barrio + ", " + ciudad)}</div>'
+        f'<div class="img-box" style="margin-bottom:4mm;">'
+        f'<img src="{hero_src}" style="height:52mm; width:100%; object-fit:cover;" alt=""/>'
+        f'<div class="img-cap">{_s(data.get("direccion"), barrio + " &middot; " + ciudad)}</div>'
         f'</div>'
         f'<table class="dtable"><tbody>{"".join(rows)}</tbody></table>'
         f'<div class="divider"></div>'
         f'<div class="g3">'
-        f'{_card("Precio/m2" if es else "Price/m2", pm2_str, "Precio por metro cuadrado construido" if es else "Price per built sq metre", "dark")}'
-        f'{_card("Zona / Precio" if es else "Area / Price", pm2z_str, "Media de la zona de referencia" if es else "Area reference average", "sky")}'
-        f'{_card("Score Premium", f"{ps}/10", "Calidad y posicionamiento del activo" if es else "Asset quality and positioning", "stone")}'
+        f'{_card("Precio/m2" if es else "Price/m2", pm2_str, "Precio por metro cuadrado construido" if es else "Price per built m2", "stone")}'
+        f'{_card("Media de zona" if es else "Area average", pm2z_str, "Precio medio de referencia en la zona" if es else "Reference area average price", "sky")}'
+        f'{_card("Score Premium", f"{ps}/10", "Calidad y posicionamiento global" if es else "Overall quality and positioning", "dark")}'
         f'</div>'
         f'{_foot(sh_ey, ciudad)}'
-        f'</div>'
+        f'</div>',
+        bg_key='ficha'
     )
 
 
-# ── COMMERCIAL DESCRIPTION ─────────────────────────────────────────────────────
+# ─── COMMERCIAL DESCRIPTION (con habitaciones) ────────────────────────────────
+
 def _build_commercial(data, content, lang, n):
     es = lang == 'es'
     fotos = data.get('foto_paths', [])
     ciudad = _s(data.get('ciudad'), '')
+    barrio = _s(data.get('barrio')) or ciudad
+    tipo_p = data.get('tipo_propiedad', '')
+    m2 = _s(data.get('metros_construidos'))
+    dorms = _s(data.get('dormitorios'))
+    banos = _s(data.get('banos'))
+    estado = data.get('estado', '')
+
     paras = [p.strip() for p in content['narrative'].split('\n\n') if p.strip()]
     lead = paras[0] if paras else ''
-    body = ''.join(f'<p class="text" style="margin-bottom:3mm;">{p}</p>' for p in paras[1:3])
+    body = ''.join(f'<p class="text" style="margin-bottom:2.5mm;">{p}</p>' for p in paras[1:2])
 
-    fallbacks = [IMGS['interior1'], IMGS['interior2'], IMGS['terrace']]
-
-    def img_tag(idx, height, cap=''):
-        src = (_photo_b64(fotos[idx]) if idx < len(fotos) else '') or fallbacks[idx % len(fallbacks)]
-        cap_html = f'<div class="img-cap">{cap}</div>' if cap else ''
-        return f'<div class="img-box"><img src="{src}" style="height:{height}; width:100%; object-fit:cover;" alt=""/>{cap_html}</div>'
-
+    # Room labels and fallback images
     if es:
-        sh_ey = 'Descripcion Comercial'; sh_tt = 'El inmueble presentado en toda su dimension.'
-        cap1 = 'Vista principal'; cap2 = 'Detalle'; cap3 = 'Espacio'
+        sh_ey = 'Descripcion del Inmueble'; sh_tt = 'Cada espacio, presentado con criterio y detalle.'
+        room_labels = ['Salon / Living', 'Cocina', 'Dormitorio Principal', 'Bano', 'Zona Exterior', 'Zona Adicional']
+        estado_desc = {
+            'nuevo': 'Inmueble a estrenar con acabados de primera calidad.',
+            'excelente': 'Excelente estado de conservacion, listo para entrar a vivir.',
+            'bueno': 'Buen estado general con mantenimiento cuidado a lo largo de los anos.',
+            'reformar': 'Inmueble con potencial de reforma — gran oportunidad de personalizacion.',
+            '': 'Calidades y acabados acordes al posicionamiento del activo.'
+        }.get(estado, '')
     else:
-        sh_ey = 'Commercial Description'; sh_tt = 'The property in its full dimension.'
-        cap1 = 'Main view'; cap2 = 'Detail'; cap3 = 'Space'
+        sh_ey = 'Property Description'; sh_tt = 'Every space, presented with criterion and detail.'
+        room_labels = ['Living Room', 'Kitchen', 'Master Bedroom', 'Bathroom', 'Exterior Area', 'Additional Space']
+        estado_desc = {
+            'nuevo': 'Brand new property with first-class finishes.',
+            'excelente': 'Excellent condition, ready to move in.',
+            'bueno': 'Good general condition with careful maintenance over the years.',
+            'reformar': 'Property with renovation potential — great personalisation opportunity.',
+            '': 'Qualities and finishes in line with the asset positioning.'
+        }.get(estado, '')
+
+    room_fallbacks = [IMGS['living'], IMGS['kitchen'], IMGS['bedroom'], IMGS['bathroom'], IMGS['terrace'], IMGS['interior2']]
+
+    def get_room_src(idx):
+        if idx < len(fotos):
+            s = _photo_b64(fotos[idx])
+            if s: return s
+        return room_fallbacks[idx % len(room_fallbacks)]
+
+    # Build room grid — max 6 rooms (2 rows of 3)
+    num_rooms = max(3, min(6, len(fotos) if fotos else 6))
+    rooms_html = ''.join(
+        f'<div class="room-item">'
+        f'<img src="{get_room_src(i)}" alt="{room_labels[i]}"/>'
+        f'<div class="room-cap">{room_labels[i]}</div>'
+        f'</div>'
+        for i in range(num_rooms)
+    )
+
+    # Data chips
+    chips = []
+    if m2: chips.append(f"{m2} m2")
+    if dorms and dorms != '0': chips.append(f"{dorms} {'dorm.' if es else 'bed.'}")
+    if banos and banos != '0': chips.append(f"{banos} {'ban.' if es else 'bath.'}")
+    chips_html = ' &nbsp;&middot;&nbsp; '.join(f'<strong>{c}</strong>' for c in chips)
 
     return _page(
         f'<div class="inner">'
         f'{_sh(sh_ey, sh_tt, n)}'
         f'<p class="lead">{lead}</p>'
         f'{body}'
-        f'<div class="divider"></div>'
-        f'<div class="g2" style="margin-top:4mm;">'
-        f'<div>{img_tag(0, "58mm", cap1)}</div>'
-        f'<div style="display:grid; gap:4mm;">'
-        f'{img_tag(1, "27mm", cap2)}'
-        f'{img_tag(2, "27mm", cap3)}'
+        f'<div class="note" style="margin-bottom:4mm;">'
+        f'{chips_html}'
+        f'{"&nbsp;&nbsp;&middot;&nbsp;&nbsp;" + estado_desc if estado_desc and chips else estado_desc}'
         f'</div>'
-        f'</div>'
+        f'<div class="room-grid">{rooms_html}</div>'
         f'{_foot(sh_ey, ciudad)}'
-        f'</div>'
+        f'</div>',
+        bg_key='commercial'
     )
 
 
-# ── LOCATION ANALYSIS — con radar SVG ─────────────────────────────────────────
+# ─── LOCATION ANALYSIS ────────────────────────────────────────────────────────
+
 def _build_location(data, content, lang, n):
     es = lang == 'es'
     ciudad = _s(data.get('ciudad'), '')
@@ -1198,13 +1210,17 @@ def _build_location(data, content, lang, n):
     ls = content['loc_scores']
     paras = [p.strip() for p in content['zona_text'].split('\n\n') if p.strip()]
     lead = paras[0] if paras else ''
-    body = ''.join(f'<p class="text" style="margin-bottom:2.5mm;">{p}</p>' for p in paras[1:2])
+    body_paras = paras[1:3]
+    body = ''.join(f'<p class="text" style="margin-bottom:2.5mm;">{p}</p>' for p in body_paras)
 
-    # Radar chart — estilo del PDF anterior adaptado a SVG
     if es:
-        radar_labels = ['Conectividad', 'Transporte', 'Servicios', 'Comercios', 'Calidad Zona', 'Seguridad']
+        radar_labels = ['Conectividad', 'Transporte', 'Servicios', 'Comercios', 'Calidad', 'Potencial']
+        sh_ey = 'Analisis de Ubicacion'; sh_tt = f'{ciudad} — multiplicador de valor y calidad de vida.'
+        radar_lbl = 'Indice de Ubicacion'; bars_lbl = 'Puntuaciones por factor'
     else:
-        radar_labels = ['Connectivity', 'Transport', 'Services', 'Commerce', 'Zone Quality', 'Safety']
+        radar_labels = ['Connectivity', 'Transport', 'Services', 'Commerce', 'Quality', 'Potential']
+        sh_ey = 'Location Analysis'; sh_tt = f'{ciudad} — value and quality-of-life multiplier.'
+        radar_lbl = 'Location Index'; bars_lbl = 'Factor scores'
 
     radar_values = [
         float(ls.get('conectividad', 7.5)),
@@ -1212,31 +1228,18 @@ def _build_location(data, content, lang, n):
         float(ls.get('servicios', 7.5)),
         float(ls.get('comercios', 7.0)),
         float(ls.get('atractivo_residencial', 7.0)),
-        float(ls.get('seguridad', 8.0)),
+        float(ls.get('crecimiento', 7.5)),
     ]
-    radar_svg = _svg_radar(radar_labels, radar_values, size=162)
+    radar_svg = _svg_radar(radar_labels, radar_values, size=210)
 
-    # Barras horizontales — estilo del PDF anterior
     bar_items = list(zip(radar_labels, radar_values))
-    bars_html = ''.join(_svg_bar(lbl, val, 10, 158) for lbl, val in bar_items)
+    bars_html = ''.join(_svg_bar(lbl, val, 10, 210) for lbl, val in bar_items)
 
-    # Zone images
     zone_imgs = _zone_imgs(data, lang)
     zone_html = ''.join(
         f'<div class="vitem"><img src="{u}" alt="{l}"/><div class="vcap">{l}</div></div>'
         for u, l in zone_imgs[:6]
     )
-
-    if es:
-        sh_ey = 'Analisis de Ubicacion'
-        sh_tt = f'{ciudad} — multiplicador de valor y calidad de vida.'
-        radar_lbl = 'Indice de Ubicacion'
-        bars_lbl = 'Puntuaciones por factor'
-    else:
-        sh_ey = 'Location Analysis'
-        sh_tt = f'{ciudad} — value and quality-of-life multiplier.'
-        radar_lbl = 'Location Index'
-        bars_lbl = 'Factor scores'
 
     return _page(
         f'<div class="inner">'
@@ -1244,7 +1247,7 @@ def _build_location(data, content, lang, n):
         f'<p class="lead">{lead}</p>'
         f'{body}'
         f'<div class="divider"></div>'
-        f'<div class="g2" style="align-items:start;">'
+        f'<div class="g2" style="align-items:start; margin-bottom:4mm;">'
         f'  <div>'
         f'    <h4>{radar_lbl}</h4>'
         f'    <div style="margin-top:3mm; display:flex; justify-content:center;">{radar_svg}</div>'
@@ -1254,33 +1257,93 @@ def _build_location(data, content, lang, n):
         f'    <div class="bars-block" style="margin-top:4mm;">{bars_html}</div>'
         f'  </div>'
         f'</div>'
-        f'<div class="divider"></div>'
         f'<div class="vgallery">{zone_html}</div>'
         f'{_foot(sh_ey, ciudad)}'
-        f'</div>'
+        f'</div>',
+        bg_key='location'
     )
 
 
-# ── SERVICES ───────────────────────────────────────────────────────────────────
+# ─── SERVICES — análisis ampliado ─────────────────────────────────────────────
+
 def _build_services(data, content, lang, n):
     es = lang == 'es'
     ciudad = _s(data.get('ciudad'), '')
-    servicios_texto = _s(data.get('servicios_cercanos', ''))
-    tendencia = _s(data.get('tendencia_mercado', ''))
+    barrio = _s(data.get('barrio')) or ciudad
+    srv_raw = (data.get('servicios_cercanos') or '').lower()
+    ls = content['loc_scores']
 
     if es:
-        sh_ey = 'Servicios e Infraestructura'; sh_tt = 'Todo lo que potencia el valor y el bienestar.'
-        intro = f"El entorno inmediato ofrece acceso directo a una red de servicios de primer nivel en {ciudad}."
-        if servicios_texto: intro += f" {servicios_texto}"
-        conclusion = tendencia or f"El acceso integral a estos servicios posiciona el inmueble en el cuartil superior del mercado en {ciudad}."
+        sh_ey = 'Servicios e Infraestructura'; sh_tt = f'Todo lo que define la calidad de vida en {barrio}.'
+        intro = (f"El entorno de {barrio} ofrece un ecosistema completo de servicios urbanos que potencia "
+                 f"significativamente el valor del activo y la calidad de vida de sus ocupantes. "
+                 f"A continuacion se analiza en detalle cada categoria de equipamiento.")
+
+        # Build service analysis based on keywords
+        svc_blocks = []
+
+        # Transport
+        transp_score = ls.get('transporte', 7.0)
+        transp_detail = "Red de transporte publico con acceso directo a metro, bus y cercanias." if any(k in srv_raw for k in ['metro','bus','tren','renfe']) else "Buena conectividad viaria y acceso a transporte urbano."
+        svc_blocks.append(('Transporte y Movilidad', transp_detail, f"{transp_score}/10"))
+
+        # Education
+        edu_detail = "Oferta educativa completa: colegios concertados y privados, con opciones de educacion infantil hasta universitaria en el entorno inmediato." if any(k in srv_raw for k in ['colegio','escuela','universidad']) else "Centros educativos accesibles en el area metropolitana."
+        svc_blocks.append(('Educacion', edu_detail, f"{ls.get('servicios', 7.0)}/10"))
+
+        # Healthcare
+        health_detail = "Cobertura sanitaria de primer nivel con hospitales, clinicas privadas y farmacias en el radio cercano al inmueble." if any(k in srv_raw for k in ['hospital','clinica','salud','farmacia']) else "Servicios de salud publicos y privados accesibles en la zona."
+        svc_blocks.append(('Servicios Sanitarios', health_detail, f"{min(10, float(ls.get('servicios', 7.0)) + 0.5):.1f}/10"))
+
+        # Commerce
+        com_detail = "Tejido comercial activo con supermercados, restaurantes y zonas de ocio en el entorno directo." if any(k in srv_raw for k in ['supermercado','comercio','restaurante','bar']) else "Zona con oferta comercial y hostelera variada en su radio de influencia."
+        svc_blocks.append(('Comercio y Restauracion', com_detail, f"{ls.get('comercios', 7.0)}/10"))
+
+        # Green spaces
+        verde_detail = "Parques, jardines y zonas verdes accesibles a pie, que contribuyen a la calidad ambiental del entorno residencial." if any(k in srv_raw for k in ['parque','jardin','verde']) else "Espacios verdes urbanos en el area, contribuyendo al bienestar ambiental."
+        svc_blocks.append(('Zonas Verdes', verde_detail, f"{ls.get('conectividad', 7.5):.1f}/10"))
+
+        # Security / Urban quality
+        svc_blocks.append(('Seguridad y Entorno', f"Barrio consolidado de {barrio} con perfil residencial estable, baja conflictividad y entorno urbano cuidado.", f"{ls.get('atractivo_residencial', 7.5):.1f}/10"))
+
+        conclusion = (f"La dotacion global de servicios en {barrio} alcanza una puntuacion de {ls.get('servicios', 7.5)}/10, "
+                      f"situando al inmueble en una zona de alta dotacion urbana que respalda tanto la calidad de vida "
+                      f"de sus ocupantes como la solidez de la inversion a largo plazo.")
     else:
-        sh_ey = 'Services & Infrastructure'; sh_tt = 'Everything that enhances value and wellbeing.'
-        intro = f"The immediate surroundings offer direct access to a first-class urban services network in {ciudad}."
-        if servicios_texto: intro += f" {servicios_texto}"
-        conclusion = tendencia or f"This comprehensive service access positions the property in the top quartile of the {ciudad} market."
+        sh_ey = 'Services & Infrastructure'; sh_tt = f'Everything that defines quality of life in {barrio}.'
+        intro = (f"The surroundings of {barrio} offer a complete urban services ecosystem that significantly "
+                 f"enhances the asset value and quality of life for its occupants. "
+                 f"Below is a detailed analysis of each services category.")
+
+        svc_blocks = []
+        transp_score = ls.get('transporte', 7.0)
+        transp_detail = "Public transport network with direct access to metro, bus and commuter rail." if any(k in srv_raw for k in ['metro','bus','train']) else "Good road connectivity and access to urban transport."
+        svc_blocks.append(('Transport & Mobility', transp_detail, f"{transp_score}/10"))
+        edu_detail = "Full educational offer: state and private schools, with options from nursery to university nearby." if any(k in srv_raw for k in ['school','college','university']) else "Educational centres accessible in the metropolitan area."
+        svc_blocks.append(('Education', edu_detail, f"{ls.get('servicios', 7.0)}/10"))
+        health_detail = "First-class healthcare with hospitals, private clinics and pharmacies in the property's close radius." if any(k in srv_raw for k in ['hospital','clinic','health','pharmacy']) else "Public and private health services accessible in the area."
+        svc_blocks.append(('Healthcare', health_detail, f"{min(10, float(ls.get('servicios', 7.0)) + 0.5):.1f}/10"))
+        com_detail = "Active commercial fabric with supermarkets, restaurants and leisure areas in the immediate vicinity." if any(k in srv_raw for k in ['supermarket','commerce','restaurant']) else "Area with varied commercial and hospitality offer in its radius of influence."
+        svc_blocks.append(('Commerce & Dining', com_detail, f"{ls.get('comercios', 7.0)}/10"))
+        verde_detail = "Parks, gardens and green areas walkable from the property, contributing to environmental quality." if any(k in srv_raw for k in ['park','garden','green']) else "Urban green spaces in the area, contributing to environmental wellbeing."
+        svc_blocks.append(('Green Spaces', verde_detail, f"{ls.get('conectividad', 7.5):.1f}/10"))
+        svc_blocks.append(('Safety & Urban Quality', f"Consolidated neighbourhood of {barrio} with stable residential profile, low conflict and well-maintained urban environment.", f"{ls.get('atractivo_residencial', 7.5):.1f}/10"))
+
+        conclusion = (f"The global services provision in {barrio} reaches a score of {ls.get('servicios', 7.5)}/10, "
+                      f"placing the property in a high urban provision area that supports both the occupants' quality of life "
+                      f"and the long-term investment solidity.")
+
+    svc_cards_html = ''.join(
+        f'<div class="svc-card">'
+        f'<h4>{lbl}</h4>'
+        f'<p class="text">{desc}</p>'
+        f'<div class="svc-score">{score}</div>'
+        f'</div>'
+        for lbl, desc, score in svc_blocks
+    )
 
     svc_imgs = _service_imgs(lang)
-    svcs_html = ''.join(
+    imgs_html = ''.join(
         f'<div class="vitem"><img src="{u}" alt="{l}"/><div class="vcap">{l}</div></div>'
         for u, l in svc_imgs
     )
@@ -1289,20 +1352,24 @@ def _build_services(data, content, lang, n):
         f'<div class="inner">'
         f'{_sh(sh_ey, sh_tt, n)}'
         f'<p class="lead">{intro}</p>'
-        f'<div class="vgallery">{svcs_html}</div>'
+        f'<div class="g3" style="margin-bottom:4mm;">{svc_cards_html}</div>'
+        f'<div class="vgallery" style="margin-bottom:4mm;">{imgs_html}</div>'
         f'<div class="note">{conclusion}</div>'
         f'{_foot(sh_ey, ciudad)}'
-        f'</div>'
+        f'</div>',
+        bg_key='services'
     )
 
 
-# ── INVESTMENT ANALYSIS — con donuts SVG ──────────────────────────────────────
+# ─── INVESTMENT ANALYSIS ──────────────────────────────────────────────────────
+
 def _build_investment(data, content, lang, n):
     es = lang == 'es'
     fin = content['financials']
     ciudad = _s(data.get('ciudad'), '')
     paras = [p.strip() for p in content['financial_text'].split('\n\n') if p.strip()]
     lead = paras[0] if paras else ''
+    body = ''.join(f'<p class="text" style="margin-bottom:2mm;">{p}</p>' for p in paras[1:2])
 
     yb  = fin.get('yield_bruto', 0)
     yn  = fin.get('yield_neto', 0)
@@ -1317,16 +1384,15 @@ def _build_investment(data, content, lang, n):
     gastos_total = (fin.get('gas_com_anual', 0) + fin.get('ibi', 0) +
                     fin.get('gestion', 0) + fin.get('otros', 0))
 
-    # Donut SVGs
     yb_float = float(yb) if yb else 0
     yn_float = float(yn) if yn else 0
     roi_float = float(roi) if roi else 0
-    donut1 = _svg_donut(min(yb_float * 10, 100), f"{yb_float:.1f}%", 76)
-    donut2 = _svg_donut(min(yn_float * 10, 100), f"{yn_float:.1f}%", 76, '#9b7638')
-    donut3 = _svg_donut(min(roi_float * 3, 100), f"{roi_float:.1f}%", 76, '#2c3e52')
+    donut1 = _svg_donut(min(yb_float * 10, 100), f"{yb_float:.1f}%", 96)
+    donut2 = _svg_donut(min(yn_float * 10, 100), f"{yn_float:.1f}%", 96, '#8a6828')
+    donut3 = _svg_donut(min(roi_float * 3, 100),  f"{roi_float:.1f}%", 96, '#1e3248')
 
     if es:
-        sh_ey = 'Escenario de Inversion'; sh_tt = 'Potencial financiero y logica de retorno.'
+        sh_ey = 'Escenario de Inversion'; sh_tt = 'Potencial financiero y logica de retorno del activo.'
         rows = [
             ('Precio de adquisicion', _eur(precio)),
             ('Reforma estimada', _eur(reforma) if reforma else 'No necesaria'),
@@ -1334,12 +1400,13 @@ def _build_investment(data, content, lang, n):
             ('Ingresos brutos anuales', _eur(ing) if ing else 'Pendiente'),
             ('Gastos operativos', _eur(gastos_total) if gastos_total else '—'),
             ('Ingresos netos anuales', _eur(ing_n) if ing_n else '—'),
-            ('Payback', f"{pb:.1f} anos" if pb else '—'),
+            ('Payback estimado', f"{pb:.1f} anos" if pb else '—'),
         ]
         d1l = 'Yield Bruta'; d2l = 'Yield Neta'; d3l = 'ROI 5 Anos'
-        nota = f"Escenario calculado con {_s(data.get('ocupacion','90'))}% ocupacion y revalorizacion estimada del {_pct(rev)}/ano. Datos orientativos."
+        nota = (f"Escenario calculado con {_s(data.get('ocupacion','90'))}% de ocupacion y revalorizacion "
+                f"estimada del {_pct(rev)}/ano. Datos de caracter orientativo — revisar con asesor financiero.")
     else:
-        sh_ey = 'Investment Scenario'; sh_tt = 'Financial potential and return rationale.'
+        sh_ey = 'Investment Scenario'; sh_tt = 'Financial potential and asset return rationale.'
         rows = [
             ('Acquisition price', _eur(precio)),
             ('Estimated renovation', _eur(reforma) if reforma else 'Not needed'),
@@ -1347,21 +1414,22 @@ def _build_investment(data, content, lang, n):
             ('Annual gross income', _eur(ing) if ing else 'TBD'),
             ('Operating costs', _eur(gastos_total) if gastos_total else '—'),
             ('Annual net income', _eur(ing_n) if ing_n else '—'),
-            ('Payback', f"{pb:.1f} years" if pb else '—'),
+            ('Estimated payback', f"{pb:.1f} years" if pb else '—'),
         ]
         d1l = 'Gross Yield'; d2l = 'Net Yield'; d3l = '5Y ROI'
-        nota = f"Scenario at {_s(data.get('ocupacion','90'))}% occupancy and estimated {_pct(rev)}/yr appreciation. Indicative data."
+        nota = (f"Scenario at {_s(data.get('ocupacion','90'))}% occupancy and estimated {_pct(rev)}/yr appreciation. "
+                f"Indicative data — review with a financial advisor.")
 
     rows_html = ''.join(f'<tr><td>{k}</td><td>{v}</td></tr>' for k, v in rows if v not in ('—',''))
 
     donuts_html = (
-        f'<div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:3mm; margin-top:5mm;">'
-        f'  <div style="text-align:center; padding:4mm; background:rgba(255,255,255,0.88); border:1px solid rgba(36,52,71,0.11);">'
-        f'    {donut1}<div class="micro" style="margin-top:2mm;">{d1l}</div></div>'
-        f'  <div style="text-align:center; padding:4mm; background:rgba(255,255,255,0.88); border:1px solid rgba(36,52,71,0.11);">'
-        f'    {donut2}<div class="micro" style="margin-top:2mm;">{d2l}</div></div>'
-        f'  <div style="text-align:center; padding:4mm; background:rgba(255,255,255,0.88); border:1px solid rgba(36,52,71,0.11);">'
-        f'    {donut3}<div class="micro" style="margin-top:2mm;">{d3l}</div></div>'
+        f'<div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:4mm; margin:5mm 0;">'
+        f'  <div style="text-align:center; padding:5mm; background:linear-gradient(135deg,var(--warm),var(--pearl)); border:1px solid rgba(201,168,76,0.28);">'
+        f'    {donut1}<div class="micro" style="margin-top:2.5mm;">{d1l}</div></div>'
+        f'  <div style="text-align:center; padding:5mm; background:linear-gradient(135deg,var(--warm),var(--pearl)); border:1px solid rgba(201,168,76,0.28);">'
+        f'    {donut2}<div class="micro" style="margin-top:2.5mm;">{d2l}</div></div>'
+        f'  <div style="text-align:center; padding:5mm; background:linear-gradient(135deg,var(--warm),var(--pearl)); border:1px solid rgba(201,168,76,0.28);">'
+        f'    {donut3}<div class="micro" style="margin-top:2.5mm;">{d3l}</div></div>'
         f'</div>'
     )
 
@@ -1369,16 +1437,19 @@ def _build_investment(data, content, lang, n):
         f'<div class="inner">'
         f'{_sh(sh_ey, sh_tt, n)}'
         f'<p class="lead">{lead}</p>'
+        f'{body}'
         f'<div class="divider"></div>'
-        f'<table class="dtable" style="margin-bottom:0;"><tbody>{rows_html}</tbody></table>'
+        f'<table class="dtable"><tbody>{rows_html}</tbody></table>'
         f'{donuts_html}'
         f'<div class="note">{nota}</div>'
         f'{_foot(sh_ey, "Estimaciones orientativas" if es else "Indicative estimates")}'
-        f'</div>'
+        f'</div>',
+        bg_key='investment'
     )
 
 
-# ── COMPETITIVE ADVANTAGES ─────────────────────────────────────────────────────
+# ─── COMPETITIVE ADVANTAGES ───────────────────────────────────────────────────
+
 def _build_advantages(data, content, lang, n):
     es = lang == 'es'
     ciudad = _s(data.get('ciudad'), '')
@@ -1386,12 +1457,12 @@ def _build_advantages(data, content, lang, n):
     args = list(content['commercial'].get('argumentos', []))
 
     if es:
-        sh_ey = 'Ventajas Competitivas'; sh_tt = 'Razones para priorizar este activo.'
+        sh_ey = 'Ventajas Competitivas'; sh_tt = 'Razones de peso para priorizar este activo.'
         titles = (['Ubicacion Estrategica','Posicionamiento Premium','Demanda Sostenida','Potencial de Revalorizacion','Rentabilidad Diferencial','Liquidez del Activo']
                   if tipo_dossier == 'inversores' else
                   ['Ubicacion Privilegiada','Calidad de Construccion','Entorno Residencial','Servicios de Primer Nivel','Espacios y Distribucion','Inversion Segura'])
     else:
-        sh_ey = 'Competitive Advantages'; sh_tt = 'Reasons to prioritise this asset.'
+        sh_ey = 'Competitive Advantages'; sh_tt = 'Compelling reasons to prioritise this asset.'
         titles = (['Strategic Location','Premium Positioning','Sustained Demand','Appreciation Potential','Differential Return','Asset Liquidity']
                   if tipo_dossier == 'inversores' else
                   ['Prime Location','Construction Quality','Residential Environment','First-Class Services','Layout & Space','Safe Investment'])
@@ -1415,11 +1486,13 @@ def _build_advantages(data, content, lang, n):
         f'<div class="g2">{advs_html}</div>'
         f'<div class="note">{concl}</div>'
         f'{_foot(sh_ey, ciudad)}'
-        f'</div>'
+        f'</div>',
+        bg_key='advantages'
     )
 
 
-# ── VALUE CREATION PLAN ────────────────────────────────────────────────────────
+# ─── VALUE CREATION PLAN ──────────────────────────────────────────────────────
+
 def _build_value_plan(data, content, lang, n):
     es = lang == 'es'
     ciudad = _s(data.get('ciudad'), '')
@@ -1428,28 +1501,28 @@ def _build_value_plan(data, content, lang, n):
     if es:
         sh_ey = 'Plan de Creacion de Valor'; sh_tt = 'Como convertir este activo en rentabilidad sostenida.'
         fases = [
-            ('Fase 1','Adquisicion','Due diligence, negociacion y cierre en condiciones optimas.'),
-            ('Fase 2','Optimizacion','Reforma estrategica o puesta a punto. Posicionamiento de mercado.'),
-            ('Fase 3','Monetizacion','Comercializacion con pricing competitivo. Seleccion de inquilino/comprador.'),
-            ('Fase 4','Consolidacion','Gestion activa. Revision anual y analisis de estrategia de salida.'),
+            ('Fase 1','Adquisicion','Due diligence completa, negociacion y cierre en condiciones optimas de mercado.'),
+            ('Fase 2','Optimizacion','Reforma estrategica o puesta a punto del activo. Posicionamiento diferencial de mercado.'),
+            ('Fase 3','Monetizacion','Comercializacion con pricing competitivo. Seleccion rigurosa de inquilino o comprador.'),
+            ('Fase 4','Consolidacion','Gestion activa del activo. Revision anual y analisis continuo de la estrategia de salida.'),
         ]
         extras = [
-            ('Fiscal', 'Amortizacion, deduccion de gastos y estructura juridica optima para el perfil inversor.', 'stone'),
-            ('Gestion', 'Delegacion a empresa especializada. Comision tipica: 8-12% sobre renta bruta.', 'sky'),
-            ('Salida', 'Venta a 5 anos en mercado abierto o a inquilino con tanteo. Plusvalia estimada por revalorizacion.', 'dark'),
+            ('Optimizacion Fiscal', 'Amortizacion del activo, deduccion de gastos operativos y estructura juridica optima para el perfil inversor. Ahorro fiscal estimado 20-30%.', 'stone'),
+            ('Gestion Profesional', 'Delegacion a empresa especializada en gestion de activos. Comision tipica del 8-12% sobre renta bruta. Cero gestion directa del inversor.', 'sky'),
+            ('Estrategia de Salida', 'Venta a 5-7 anos en mercado abierto, a inquilino con derecho de tanteo, o incorporacion a fondo patrimonial. Plusvalia estimada por revalorizacion incluida en el ROI.', 'dark'),
         ]
     else:
         sh_ey = 'Value Creation Plan'; sh_tt = 'How to turn this asset into sustained returns.'
         fases = [
-            ('Phase 1','Acquisition','Full due diligence, negotiation and closing under optimal conditions.'),
-            ('Phase 2','Optimisation','Strategic renovation or asset preparation. Market positioning.'),
+            ('Phase 1','Acquisition','Full due diligence, negotiation and closing under optimal market conditions.'),
+            ('Phase 2','Optimisation','Strategic renovation or asset preparation. Differential market positioning.'),
             ('Phase 3','Monetisation','Competitive pricing. Rigorous tenant or buyer selection.'),
-            ('Phase 4','Consolidation','Active management. Annual review and exit strategy analysis.'),
+            ('Phase 4','Consolidation','Active asset management. Annual review and continuous exit strategy analysis.'),
         ]
         extras = [
-            ('Tax', 'Depreciation, expense deductions and optimal legal structure for the investor profile.', 'stone'),
-            ('Management', 'Delegation to specialist firm. Typical fee: 8-12% on gross rent.', 'sky'),
-            ('Exit', 'Sale at 5 years on open market or to tenant with pre-emption right.', 'dark'),
+            ('Tax Optimisation', 'Asset depreciation, operating expense deductions and optimal legal structure. Estimated tax saving 20-30%.', 'stone'),
+            ('Professional Management', 'Delegation to specialist asset management firm. Typical fee: 8-12% on gross rent. Zero direct management for the investor.', 'sky'),
+            ('Exit Strategy', 'Sale at 5-7 years on open market, to tenant with pre-emption right, or incorporation into a wealth fund. Estimated capital gain included in ROI.', 'dark'),
         ]
 
     timeline_html = ''.join(
@@ -1467,11 +1540,13 @@ def _build_value_plan(data, content, lang, n):
         f'<div class="g3">{extras_html}</div>'
         f'{info_block}'
         f'{_foot(sh_ey, ciudad)}'
-        f'</div>'
+        f'</div>',
+        bg_key='value'
     )
 
 
-# ── STRATEGIC ANALYSIS ─────────────────────────────────────────────────────────
+# ─── STRATEGIC ANALYSIS ───────────────────────────────────────────────────────
+
 def _build_strategic(data, content, lang, n):
     es = lang == 'es'
     ciudad = _s(data.get('ciudad'), '')
@@ -1496,7 +1571,7 @@ def _build_strategic(data, content, lang, n):
     )
     recs = content['conclusions'].get('recomendaciones', [])
     recs_li = ''.join(
-        f'<li style="margin-bottom:2mm; font-family:Inter,Arial,sans-serif; font-size:7.5pt; line-height:1.48; color:rgba(255,255,255,0.86);">{r}</li>'
+        f'<li style="margin-bottom:2.5mm; font-family:Inter,Arial,sans-serif; font-size:9pt; line-height:1.50; color:rgba(255,255,255,0.90);">{r}</li>'
         for r in recs[:4]
     )
     opp_lbl = 'Oportunidades' if es else 'Opportunities'
@@ -1509,14 +1584,16 @@ def _build_strategic(data, content, lang, n):
         f'<div class="divider"></div>'
         f'<div class="g2">'
         f'<div><h4>{opp_lbl}</h4><div style="margin-top:3mm;">{opps_html}</div></div>'
-        f'<div class="card dark"><h4>{rec_lbl}</h4><ul style="margin-top:3mm; padding-left:4mm;">{recs_li}</ul></div>'
+        f'<div class="card dark"><h4>{rec_lbl}</h4><ul style="margin-top:3mm; padding-left:5mm; list-style:disc;">{recs_li}</ul></div>'
         f'</div>'
         f'{_foot(sh_ey, ciudad)}'
-        f'</div>'
+        f'</div>',
+        bg_key='strategic'
     )
 
 
-# ── LIFESTYLE (Particulares) ───────────────────────────────────────────────────
+# ─── LIFESTYLE (Particulares) ─────────────────────────────────────────────────
+
 def _build_lifestyle(data, content, lang, n):
     es = lang == 'es'
     ciudad = _s(data.get('ciudad'), '')
@@ -1526,27 +1603,30 @@ def _build_lifestyle(data, content, lang, n):
     lead = paras[0] if paras else ''
     body = ''.join(f'<p class="text" style="margin-bottom:2.5mm;">{p}</p>' for p in paras[1:3])
 
-    # Score bars (like old PDF) for lifestyle version
     if es:
-        sh_ey = 'Calidad de Vida y Entorno'; sh_tt = f'Vivir en {barrio} es mucho mas que una direccion.'
+        sh_ey = 'Calidad de Vida y Entorno'
+        sh_tt = f'Vivir en {barrio} es mucho mas que una direccion.'
         bar_items = [
             ('Servicios', ls.get('servicios', 7.5)),
-            ('Colegios', ls.get('educacion', 7.0)),
+            ('Educacion', ls.get('perfil_socioeconomico', 7.0)),
             ('Conectividad', ls.get('conectividad', 7.5)),
-            ('Verde', ls.get('zonas_verdes', 7.0)),
-            ('Seguridad', ls.get('seguridad', 8.0)),
+            ('Zona Verde', ls.get('comercios', 7.0)),
+            ('Seguridad', ls.get('atractivo_residencial', 8.0)),
+            ('Potencial', ls.get('crecimiento', 7.5)),
         ]
     else:
-        sh_ey = 'Quality of Life & Environment'; sh_tt = f'Living in {barrio} is much more than an address.'
+        sh_ey = 'Quality of Life & Environment'
+        sh_tt = f'Living in {barrio} is much more than an address.'
         bar_items = [
             ('Services', ls.get('servicios', 7.5)),
-            ('Schools', ls.get('educacion', 7.0)),
+            ('Education', ls.get('perfil_socioeconomico', 7.0)),
             ('Connectivity', ls.get('conectividad', 7.5)),
-            ('Green', ls.get('zonas_verdes', 7.0)),
-            ('Safety', ls.get('seguridad', 8.0)),
+            ('Green Areas', ls.get('comercios', 7.0)),
+            ('Safety', ls.get('atractivo_residencial', 8.0)),
+            ('Potential', ls.get('crecimiento', 7.5)),
         ]
 
-    bars_html = ''.join(_svg_bar(lbl, val, 10, 158) for lbl, val in bar_items)
+    bars_html = ''.join(_svg_bar(lbl, val, 10, 210) for lbl, val in bar_items)
     zone_imgs = _zone_imgs(data, lang)
     imgs_html = ''.join(
         f'<div class="vitem"><img src="{u}" alt="{l}"/><div class="vcap">{l}</div></div>'
@@ -1556,58 +1636,63 @@ def _build_lifestyle(data, content, lang, n):
     return _page(
         f'<div class="inner">'
         f'{_sh(sh_ey, sh_tt, n)}'
-        f'<div class="g2" style="margin-bottom:5mm;">'
+        f'<div class="g2" style="margin-bottom:5mm; align-items:start;">'
         f'  <div><p class="lead" style="margin-bottom:3mm;">{lead}</p>{body}</div>'
-        f'  <div><h4>{"Puntuaciones de zona" if es else "Zone scores"}</h4><div class="bars-block" style="margin-top:4mm;">{bars_html}</div></div>'
+        f'  <div><h4>{"Puntuaciones de zona" if es else "Zone scores"}</h4>'
+        f'  <div class="bars-block" style="margin-top:4mm;">{bars_html}</div></div>'
         f'</div>'
         f'<div class="vgallery">{imgs_html}</div>'
         f'{_foot(sh_ey, ciudad)}'
-        f'</div>'
+        f'</div>',
+        bg_key='lifestyle'
     )
 
 
-# ── PHOTO GALLERY ──────────────────────────────────────────────────────────────
 def _build_gallery(data, content, lang, n):
     es = lang == 'es'
     ciudad = _s(data.get('ciudad'), '')
     fotos = data.get('foto_paths', [])
-    fallbacks = [IMGS['interior1'], IMGS['interior2'], IMGS['terrace'], IMGS['pool'], IMGS['garden'], IMGS['city']]
+    fallbacks = [IMGS['interior1'], IMGS['interior2'], IMGS['terrace'], IMGS['pool'],
+                 IMGS['garden'], IMGS['city'], IMGS['living'], IMGS['kitchen']]
 
     def get_src(idx):
         if idx < len(fotos):
             s = _photo_b64(fotos[idx])
             if s: return s
-        return fallbacks[(idx - len(fotos)) % len(fallbacks)]
+        return fallbacks[idx % len(fallbacks)]
 
     if es:
-        sh_ey = 'Galeria del Inmueble'; sh_tt = 'Presentacion visual del activo.'
-        note_txt = 'Imagenes seleccionadas para ofrecer una vision completa del inmueble y su entorno. Se recomienda solicitar una visita privada para una experiencia completa.'
+        sh_ey = 'Galeria del Inmueble'
+        sh_tt = 'Presentacion visual completa del activo.'
+        note_txt = 'Imagenes seleccionadas para una vision completa del inmueble y su entorno. Se recomienda solicitar una visita privada para una experiencia integral.'
     else:
-        sh_ey = 'Property Gallery'; sh_tt = 'Visual presentation of the asset.'
-        note_txt = 'Images selected to offer a complete view of the property and its surroundings. A private visit is recommended for the full experience.'
+        sh_ey = 'Property Gallery'
+        sh_tt = 'Complete visual presentation of the asset.'
+        note_txt = 'Images selected for a comprehensive view of the property and surroundings. A private visit is recommended for the full experience.'
 
-    extra_html = '<div class="g3" style="margin-top:4mm;">'
-    for i in range(3, 6):
-        extra_html += f'<div class="img-box"><img src="{get_src(i)}" style="height:36mm; width:100%; object-fit:cover;" alt=""/></div>'
+    extra_count = min(5, max(3, len(fotos)) - 3 if len(fotos) > 3 else 3)
+    extra_html = '<div class="g3" style="margin-top:3.5mm;">'
+    for i in range(3, 3 + extra_count):
+        extra_html += f'<div class="img-box"><img src="{get_src(i)}" style="height:38mm; width:100%; object-fit:cover;" alt=""/></div>'
     extra_html += '</div>'
 
     return _page(
         f'<div class="inner">'
         f'{_sh(sh_ey, sh_tt, n)}'
         f'<div class="photo-strip">'
-        f'<div class="img-box" style="height:98mm;"><img src="{get_src(0)}" style="height:98mm; width:100%; object-fit:cover;" alt=""/></div>'
+        f'<div class="img-box"><img src="{get_src(0)}" style="height:90mm; width:100%; object-fit:cover;" alt=""/></div>'
         f'<div class="photo-stack">'
-        f'<div class="img-box" style="height:47mm;"><img src="{get_src(1)}" style="height:47mm; width:100%; object-fit:cover;" alt=""/></div>'
-        f'<div class="img-box" style="height:47mm;"><img src="{get_src(2)}" style="height:47mm; width:100%; object-fit:cover;" alt=""/></div>'
+        f'<div class="img-box"><img src="{get_src(1)}" style="height:43mm; width:100%; object-fit:cover;" alt=""/></div>'
+        f'<div class="img-box"><img src="{get_src(2)}" style="height:43mm; width:100%; object-fit:cover;" alt=""/></div>'
         f'</div></div>'
         f'{extra_html}'
-        f'<div class="note" style="margin-top:4mm;">{note_txt}</div>'
+        f'<div class="note" style="margin-top:3.5mm;">{note_txt}</div>'
         f'{_foot(sh_ey, ciudad)}'
-        f'</div>'
+        f'</div>',
+        bg_key='gallery'
     )
 
 
-# ── FINAL CTA ──────────────────────────────────────────────────────────────────
 def _build_final(data, content, lang):
     es = lang == 'es'
     ciudad = _s(data.get('ciudad'), '')
@@ -1622,17 +1707,18 @@ def _build_final(data, content, lang):
 
     fotos = data.get('foto_paths', [])
     final_src = (_photo_b64(fotos[-1]) or IMGS['cover2']) if fotos else IMGS['cover2']
-    if not final_src: final_src = IMGS['cover2']
+    if not final_src:
+        final_src = IMGS['cover2']
 
     if es:
         if tipo_dossier == 'inversores':
             title = f"Una oportunidad limitada para tomar posicion en {ciudad}."
-            copy = f"Este activo representa una ventana de inversion con fundamentos solidos en {barrio}. Las oportunidades de este calibre son escasas y de alta rotacion."
-            cta = "Solicite visita privada y documentacion tecnica completa."
+            copy  = f"Este activo representa una ventana de inversion con fundamentos solidos en {barrio}. Las oportunidades de este calibre son escasas y de alta rotacion en el mercado actual."
+            cta   = "Solicite su visita privada y documentacion tecnica completa."
         else:
             title = f"Tu hogar en {barrio} te esta esperando."
-            copy = f"Cada detalle de este inmueble ha sido seleccionado para ofrecerte una calidad de vida superior en el corazon de {ciudad}."
-            cta = "Solicite visita privada para conocer el inmueble en persona."
+            copy  = f"Cada espacio de este inmueble ha sido seleccionado para ofrecerte calidad de vida superior en {ciudad}. Da el primer paso hoy."
+            cta   = "Solicite una visita privada para conocer el inmueble en persona."
         dossier_tag = 'Dossier Premium Inmobiliario'
         cta_lbl = 'Agente / Contacto'
         prox = 'Proximo Paso'
@@ -1641,12 +1727,12 @@ def _build_final(data, content, lang):
     else:
         if tipo_dossier == 'inversores':
             title = f"A limited opportunity to take position in {ciudad}."
-            copy = f"This asset represents an investment window with solid fundamentals in {barrio}. Opportunities of this calibre are scarce and high-turnover."
-            cta = "Request a private visit and complete technical documentation."
+            copy  = f"This asset represents an investment window with solid fundamentals in {barrio}. Opportunities of this calibre are scarce and high-turnover in today's market."
+            cta   = "Request your private visit and complete technical documentation."
         else:
             title = f"Your home in {barrio} is waiting for you."
-            copy = f"Every detail of this property has been carefully selected to offer you superior quality of life in the heart of {ciudad}."
-            cta = "Request a private visit to see the property in person."
+            copy  = f"Every space in this property has been selected to offer you superior quality of life in {ciudad}. Take the first step today."
+            cta   = "Request a private visit to see the property in person."
         dossier_tag = 'Premium Real Estate Dossier'
         cta_lbl = 'Agent / Contact'
         prox = 'Next Step'
@@ -1671,17 +1757,17 @@ def _build_final(data, content, lang):
         f'  <div>'
         f'    <div class="cover-kicker">{prox}</div>'
         f'    <div class="final-title">{title}</div>'
-        f'    <p class="cover-copy" style="max-width:132mm;">{copy}</p>'
-        f'    <div class="note" style="max-width:132mm; margin-top:6mm; background:rgba(255,255,255,0.93); color:#223246;">'
+        f'    <p class="cover-copy" style="max-width:135mm;">{copy}</p>'
+        f'    <div class="note" style="max-width:135mm; margin-top:6mm; background:rgba(255,252,245,0.96); color:#1e2f40;">'
         f'      <strong>{cta}</strong></div>'
         f'  </div>'
         f'  <div>'
         f'    <div class="contact-panel">'
-        f'      <h3 style="font-family:\'Cormorant Garamond\',Georgia,serif; font-size:16pt; color:#223246;">{nombre}</h3>'
-        f'      <p class="text" style="color:#52657a; margin-top:1mm;">{cta_lbl}</p>'
+        f'      <h3 style="font-family:\'Cormorant Garamond\',Georgia,serif; font-size:18pt; color:#1e2f40;">{nombre}</h3>'
+        f'      <p class="text" style="color:#4d6275; margin-top:1mm; font-size:9pt;">{cta_lbl}</p>'
         f'      <div class="contact-grid">'
         f'        <div class="contact-item"><span>Email</span><strong>{email}</strong></div>'
-        f'        <div class="contact-item"><span>{tel_lbl}</span><strong>{tel or "—"}</strong></div>'
+        f'        <div class="contact-item"><span>{tel_lbl}</span><strong>{tel or chr(8212)}</strong></div>'
         f'        {third}'
         f'      </div>'
         f'    </div>'
@@ -1692,29 +1778,27 @@ def _build_final(data, content, lang):
     )
 
 
-# ─── MAIN BUILDER ─────────────────────────────────────────────────────────────
-
 def _build_html(data, content, lang):
     tipo_dossier = data.get('tipo_dossier', 'inversores')
     pages = [_build_cover(data, content, lang)]
     n = 1
 
-    pages.append(_build_summary(data, content, lang, n)); n += 1
-    pages.append(_build_ficha(data, content, lang, n)); n += 1
+    pages.append(_build_summary(data, content, lang, n));    n += 1
+    pages.append(_build_ficha(data, content, lang, n));      n += 1
     pages.append(_build_commercial(data, content, lang, n)); n += 1
-    pages.append(_build_location(data, content, lang, n)); n += 1
-    pages.append(_build_services(data, content, lang, n)); n += 1
+    pages.append(_build_location(data, content, lang, n));   n += 1
+    pages.append(_build_services(data, content, lang, n));   n += 1
 
     if tipo_dossier == 'inversores':
-        pages.append(_build_investment(data, content, lang, n)); n += 1
-        pages.append(_build_advantages(data, content, lang, n)); n += 1
-        pages.append(_build_value_plan(data, content, lang, n)); n += 1
-        pages.append(_build_strategic(data, content, lang, n)); n += 1
+        pages.append(_build_investment(data, content, lang, n));  n += 1
+        pages.append(_build_advantages(data, content, lang, n));  n += 1
+        pages.append(_build_value_plan(data, content, lang, n));  n += 1
+        pages.append(_build_strategic(data, content, lang, n));   n += 1
     else:
-        pages.append(_build_lifestyle(data, content, lang, n)); n += 1
-        pages.append(_build_advantages(data, content, lang, n)); n += 1
+        pages.append(_build_lifestyle(data, content, lang, n));   n += 1
+        pages.append(_build_advantages(data, content, lang, n));  n += 1
 
-    pages.append(_build_gallery(data, content, lang, n)); n += 1
+    pages.append(_build_gallery(data, content, lang, n));    n += 1
     pages.append(_build_final(data, content, lang))
 
     return (
@@ -1725,8 +1809,6 @@ def _build_html(data, content, lang):
         f'</head><body>{"".join(pages)}</body></html>'
     )
 
-
-# ─── ENTRY POINT ──────────────────────────────────────────────────────────────
 
 def generate_dossier(data, content, lang='es'):
     html = _build_html(data, content, lang)
