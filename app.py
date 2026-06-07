@@ -21,9 +21,7 @@ def index():
 def generar_dossier():
     tmp_dir = None
     try:
-        # ── Campos de texto ──────────────────────────────────────────────────
         data = {k: request.form.get(k, '') for k in request.form}
-
         if 'caracteristicas' in data:
             try:
                 data['caracteristicas'] = json.loads(data['caracteristicas'])
@@ -36,7 +34,6 @@ def generar_dossier():
         if not data.get('nombre_agente'):
             data['nombre_agente'] = data.get('nombre_destinatario', '')
 
-        # ── Fotos ────────────────────────────────────────────────────────────
         tmp_dir = tempfile.mkdtemp(prefix='dossier_')
         foto_paths = []
         num_fotos = int(data.get('num_fotos', 0))
@@ -49,7 +46,6 @@ def generar_dossier():
                 foto_paths.append(path)
         data['foto_paths'] = foto_paths
 
-        # ── Generar contenido y PDF ──────────────────────────────────────────
         content   = generate_all_content(data)
         lang      = data.get('idioma', 'es')
         pdf_bytes = generate_dossier(data, content, lang)
@@ -58,11 +54,10 @@ def generar_dossier():
         ts       = datetime.now().strftime('%Y%m%d_%H%M')
         filename = re.sub(r'[^\w\.\-]', '_', f"Dossier_Premium_{barrio}_{ts}.pdf")
 
-        # ── Devolver PDF como descarga directa ───────────────────────────────
         response = make_response(pdf_bytes)
-        response.headers['Content-Type'] = 'application/pdf'
+        response.headers['Content-Type']        = 'application/pdf'
         response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
-        response.headers['X-Filename'] = filename
+        response.headers['X-Filename']          = filename
         return response
 
     except Exception as e:
@@ -71,6 +66,11 @@ def generar_dossier():
     finally:
         if tmp_dir:
             shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+@app.errorhandler(404)
+def handle_404(e):
+    return jsonify({'success': False, 'error': 'Ruta no encontrada'}), 404
 
 
 if __name__ == '__main__':
