@@ -1,26 +1,16 @@
 """
-Motor PDF Premium — Dossier Inmobiliario
-Genera dossieres visuales de alto nivel con gráficos radar, barras, scoring y galería.
+Motor PDF Premium v3 — Dossier Inmobiliario
+Híbrido: diseño del HTML template del usuario + gráficos del PDF anterior.
+- Radar SVG puro (sin dependencias externas)
+- Barras de puntuación SVG con relleno dorado
+- Google Fonts (Cormorant Garamond + Inter)
+- Paleta pearl/champagne/ink original
+- Doble marco dorado + gradientes radiales
+- Elemento decorativo orbital
 """
-import math
-import os
-from io import BytesIO
+import base64, math, os
 from datetime import datetime
-
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.lib.units import cm, mm
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT, TA_JUSTIFY
-from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    HRFlowable, PageBreak, KeepTogether, Image as RLImage
-)
-from reportlab.graphics.shapes import (
-    Drawing, Polygon, Line, String, Circle, Rect, Group
-)
-from reportlab.graphics import renderPDF
-from reportlab.pdfgen import canvas as pdfcanvas
+from io import BytesIO
 
 try:
     from PIL import Image as PILImage
@@ -28,994 +18,1719 @@ try:
 except ImportError:
     HAS_PIL = False
 
-# ─── PALETA ───────────────────────────────────────────────────────────────────
-DARK       = colors.HexColor('#07101D')
-DARK2      = colors.HexColor('#0D1A2B')
-DARK3      = colors.HexColor('#111F30')
-GOLD       = colors.HexColor('#C9A84C')
-GOLD_L     = colors.HexColor('#E8CC80')
-GOLD_DIM   = colors.Color(0.788, 0.659, 0.298, 0.25)
-WHITE      = colors.white
-GRAY       = colors.HexColor('#F4F6F9')
-BORDER     = colors.HexColor('#1A2E44')
-TEXT       = colors.HexColor('#E8EFF8')
-MUTED      = colors.HexColor('#6B82A0')
-MUTED2     = colors.HexColor('#8BA5C5')
-SUCCESS    = colors.HexColor('#22C55E')
-DANGER     = colors.HexColor('#EF4444')
-WARNING    = colors.HexColor('#F59E0B')
-
-W, H = A4   # 595 x 842 pts
 
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
-def safe_float(v, d=0.0):
-    try: return float(v) if v else d
-    except: return d
 
-def fmt_eur(v):
+def _s(v, d=''):
+    return str(v).strip() if v else d
+
+def _eur(v):
     try:
         n = float(v)
-        if n >= 1e6: return f"{n/1e6:.2f}M €"
-        return f"{int(n):,} €".replace(",", ".")
-    except: return "N/D"
+        if n >= 1_000_000: return f"{n/1_000_000:.2f}M &euro;"
+        return f"{int(n):,}&nbsp;&euro;".replace(",", ".")
+    except: return 'N/D'
 
-def fmt_pct(v, d=2):
+def _pct(v, d=1):
     try: return f"{float(v):.{d}f}%"
-    except: return "N/D"
+    except: return 'N/D'
+
+def _num(v):
+    try: return f"{float(v):.1f}"
+    except: return str(v)
+
+def _photo_b64(path, max_w=1400, q=82):
+    try:
+        if HAS_PIL:
+            img = PILImage.open(path).convert('RGB')
+            if img.width > max_w:
+                img = img.resize((max_w, int(img.height * max_w / img.width)), PILImage.LANCZOS)
+            buf = BytesIO()
+            img.save(buf, 'JPEG', quality=q, optimize=True)
+            return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+        with open(path, 'rb') as f:
+            b = base64.b64encode(f.read()).decode()
+        ext = os.path.splitext(path)[1].lower().lstrip('.')
+        mime = 'jpeg' if ext in ('jpg', 'jpeg') else ext
+        return f"data:image/{mime};base64,{b}"
+    except:
+        return ''
 
 
-# ─── ESTILOS ──────────────────────────────────────────────────────────────────
-def S(name, **kw):
-    defaults = dict(fontName='Helvetica', fontSize=10, leading=14, textColor=TEXT)
-    defaults.update(kw)
-    return ParagraphStyle(name, **defaults)
+# ─── SVG CHARTS ───────────────────────────────────────────────────────────────
 
-STYLES = {
-    'h_section': S('hs', fontName='Helvetica-Bold', fontSize=10, textColor=WHITE,
-                   leading=14, spaceAfter=0),
-    'body':      S('bo', fontSize=10, leading=15, alignment=TA_JUSTIFY,
-                   textColor=colors.HexColor('#C8D8E8'), spaceAfter=6),
-    'body_sm':   S('bs', fontSize=9,  leading=13, textColor=MUTED2, spaceAfter=4),
-    'label':     S('lb', fontName='Helvetica-Bold', fontSize=8, textColor=MUTED,
-                   leading=11, spaceAfter=2),
-    'value':     S('va', fontSize=10, textColor=TEXT, leading=14, spaceAfter=4),
-    'kpi_val':   S('kv', fontName='Helvetica-Bold', fontSize=22, textColor=GOLD,
-                   leading=28, alignment=TA_CENTER),
-    'kpi_lbl':   S('kl', fontSize=8, textColor=MUTED2, leading=11, alignment=TA_CENTER),
-    'bullet':    S('bu', fontSize=10, textColor=colors.HexColor('#C8D8E8'), leading=15,
-                   leftIndent=12, spaceAfter=4),
-    'note':      S('no', fontName='Helvetica-Oblique', fontSize=8, textColor=MUTED,
-                   leading=11, spaceAfter=4),
-    'cover_t':   S('ct', fontName='Helvetica-Bold', fontSize=30, textColor=WHITE,
-                   leading=38, alignment=TA_CENTER),
-    'cover_s':   S('cs', fontSize=13, textColor=GOLD_L, leading=19, alignment=TA_CENTER),
-    'cover_p':   S('cp', fontName='Helvetica-Bold', fontSize=38, textColor=GOLD,
-                   leading=46, alignment=TA_CENTER),
-    'cover_m':   S('cm', fontSize=10, textColor=MUTED2, leading=16, alignment=TA_CENTER),
-    'risk_hi':   S('rh', fontName='Helvetica-Bold', fontSize=9, textColor=DANGER,  leading=12),
-    'risk_med':  S('rm', fontName='Helvetica-Bold', fontSize=9, textColor=WARNING, leading=12),
-    'risk_low':  S('rl', fontName='Helvetica-Bold', fontSize=9, textColor=SUCCESS, leading=12),
-    'risk_body': S('rb', fontSize=9, textColor=MUTED2, leading=13),
-    'toc_item':  S('ti', fontSize=11, textColor=TEXT, leading=18),
-    'toc_page':  S('tp', fontName='Helvetica-Bold', fontSize=11, textColor=GOLD,
-                   leading=18, alignment=TA_RIGHT),
-}
-
-LABELS = {
-    'es': {
-        'dossier': 'DOSSIER PREMIUM', 'confidencial': '● DOCUMENTO CONFIDENCIAL ●',
-        'exec': '01  ·  RESUMEN EJECUTIVO', 'zona': '02  ·  ANÁLISIS DE UBICACIÓN',
-        'financiero': '03  ·  ANÁLISIS FINANCIERO', 'inversion': '04  ·  ANÁLISIS DE INVERSIÓN',
-        'comercial': '05  ·  ANÁLISIS COMERCIAL', 'narrativa': '06  ·  NARRATIVA COMERCIAL',
-        'riesgos': '07  ·  RIESGOS Y MITIGACIONES', 'galeria': '08  ·  GALERÍA DEL INMUEBLE',
-        'conclusiones': '09  ·  CONCLUSIONES Y RECOMENDACIONES', 'contacto': '✦  CONTACTO',
-        'lifestyle': '02  ·  CALIDAD DE VIDA Y ZONA',
-        'desc_premium': '03  ·  DESCRIPCIÓN PREMIUM',
-        'precio': 'Precio de Venta', 'superficie': 'Superficie', 'precio_m2': 'Precio / m²',
-        'yield_bruto': 'Yield Bruto', 'yield_neto': 'Yield Neto', 'payback': 'Payback',
-        'cash_flow': 'Cash Flow Anual', 'roi_5y': 'ROI 5 años',
-        'ingresos': 'Ingresos Anuales', 'gastos': 'Gastos Anuales', 'neto': 'Beneficio Neto',
-        'comunidad': 'Comunidad', 'ibi': 'IBI', 'otros': 'Otros', 'gestion': 'Gestión (est.)',
-        'reforma': 'Reforma', 'inv_total': 'Inversión Total',
-        'prop_valor': 'Propuesta de Valor', 'args': 'Argumentos de Venta',
-        'oportunidades': 'Oportunidades Comerciales', 'perfil': 'Perfil del Comprador Ideal',
-        'riesgo_alto': 'ALTO', 'riesgo_medio': 'MEDIO', 'riesgo_bajo': 'BAJO',
-        'riesgo_muy_bajo': 'MUY BAJO',
-        'mitigacion': 'Mitigación', 'riesgo_col': 'Riesgo', 'nivel': 'Nivel',
-        'recomendaciones': 'Recomendaciones', 'overall': 'Puntuación Global',
-        'img_recomendadas': '📸 IMÁGENES RECOMENDADAS PARA ESTE DOSSIER',
-        'img_portada': 'Portada', 'img_galeria': 'Galería', 'img_lifestyle': 'Lifestyle',
-        'img_zona': 'Zona', 'img_cierre': 'Cierre',
-        'presented_by': 'Presentado por', 'presented_to': 'Presentado a',
-        'fecha': 'Fecha', 'ref': 'Referencia',
-        'anos': 'años',
-        'nota': '* Las proyecciones financieras son estimaciones basadas en datos de mercado. Se recomienda due diligence independiente antes de tomar decisiones de inversión.',
-    },
-    'en': {
-        'dossier': 'PREMIUM DOSSIER', 'confidencial': '● CONFIDENTIAL DOCUMENT ●',
-        'exec': '01  ·  EXECUTIVE SUMMARY', 'zona': '02  ·  LOCATION ANALYSIS',
-        'financiero': '03  ·  FINANCIAL ANALYSIS', 'inversion': '04  ·  INVESTMENT ANALYSIS',
-        'comercial': '05  ·  COMMERCIAL ANALYSIS', 'narrativa': '06  ·  COMMERCIAL NARRATIVE',
-        'riesgos': '07  ·  RISKS & MITIGATIONS', 'galeria': '08  ·  PROPERTY GALLERY',
-        'conclusiones': '09  ·  CONCLUSIONS & RECOMMENDATIONS', 'contacto': '✦  CONTACT',
-        'lifestyle': '02  ·  QUALITY OF LIFE & LOCATION',
-        'desc_premium': '03  ·  PREMIUM DESCRIPTION',
-        'precio': 'Sale Price', 'superficie': 'Surface Area', 'precio_m2': 'Price / m²',
-        'yield_bruto': 'Gross Yield', 'yield_neto': 'Net Yield', 'payback': 'Payback',
-        'cash_flow': 'Annual Cash Flow', 'roi_5y': '5-Year ROI',
-        'ingresos': 'Annual Income', 'gastos': 'Annual Expenses', 'neto': 'Net Profit',
-        'comunidad': 'Community', 'ibi': 'Property Tax', 'otros': 'Other', 'gestion': 'Management (est.)',
-        'reforma': 'Renovation', 'inv_total': 'Total Investment',
-        'prop_valor': 'Value Proposition', 'args': 'Sales Arguments',
-        'oportunidades': 'Commercial Opportunities', 'perfil': 'Ideal Buyer Profile',
-        'riesgo_alto': 'HIGH', 'riesgo_medio': 'MEDIUM', 'riesgo_bajo': 'LOW',
-        'riesgo_muy_bajo': 'VERY LOW',
-        'mitigacion': 'Mitigation', 'riesgo_col': 'Risk', 'nivel': 'Level',
-        'recomendaciones': 'Recommendations', 'overall': 'Overall Score',
-        'img_recomendadas': '📸 RECOMMENDED IMAGES FOR THIS DOSSIER',
-        'img_portada': 'Cover', 'img_galeria': 'Gallery', 'img_lifestyle': 'Lifestyle',
-        'img_zona': 'Area', 'img_cierre': 'Closing',
-        'presented_by': 'Presented by', 'presented_to': 'Presented to',
-        'fecha': 'Date', 'ref': 'Reference',
-        'anos': 'years',
-        'nota': '* Financial projections are market-based estimates. Independent due diligence is recommended before making investment decisions.',
-    }
-}
-
-
-# ─── CANVAS PERSONALIZADO ─────────────────────────────────────────────────────
-class PremiumCanvas(pdfcanvas.Canvas):
-    def __init__(self, *args, **kwargs):
-        self.data    = kwargs.pop('data', {}) or {}
-        self.content = kwargs.pop('content', {}) or {}
-        self.lang    = kwargs.pop('lang', 'es')
-        self._pages  = []
-        super().__init__(*args, **kwargs)
-
-    def showPage(self):
-        self._pages.append(dict(self.__dict__))
-        self._startPage()
-
-    def save(self):
-        n = len(self._pages)
-        for i, state in enumerate(self._pages):
-            self.__dict__.update(state)
-            self._draw_chrome(i + 1, n)
-            super().showPage()
-        super().save()
-
-    def _draw_chrome(self, page_num, total):
-        L = LABELS[self.lang]
-        # Skip chrome on cover (page 1)
-        if page_num == 1:
-            return
-        # Header bar
-        self.setFillColor(DARK2)
-        self.rect(0, H - 14*mm, W, 14*mm, fill=1, stroke=0)
-        self.setFillColor(GOLD)
-        self.rect(0, H - 14.8*mm, W, 0.8*mm, fill=1, stroke=0)
-        # Header text
-        agente = self.data.get('nombre_agente', '')
-        if agente:
-            self.setFillColor(WHITE)
-            self.setFont('Helvetica-Bold', 7.5)
-            self.drawString(18*mm, H - 9*mm, agente.upper())
-        self.setFillColor(GOLD)
-        self.setFont('Helvetica-Bold', 7)
-        self.drawRightString(W - 18*mm, H - 9*mm, L['dossier'])
-        # Footer bar
-        self.setFillColor(DARK2)
-        self.rect(0, 0, W, 11*mm, fill=1, stroke=0)
-        self.setFillColor(GOLD)
-        self.rect(0, 10.5*mm, W, 0.5*mm, fill=1, stroke=0)
-        # Page number
-        self.setFillColor(MUTED)
-        self.setFont('Helvetica', 7)
-        self.drawRightString(W - 18*mm, 3.5*mm, f"{page_num} / {total}")
-        # Address
-        addr = self.data.get('direccion', '')
-        if addr:
-            self.setFillColor(MUTED)
-            self.setFont('Helvetica', 7)
-            self.drawString(18*mm, 3.5*mm, f"📍 {addr[:75]}")
-        # Confidential watermark
-        if self.data.get('confidencial') in ('1', True, 1):
-            self.saveState()
-            self.translate(W/2, H/2)
-            self.rotate(45)
-            self.setFont('Helvetica-Bold', 55)
-            self.setFillColor(colors.Color(1, 0, 0, 0.04))
-            self.drawCentredString(0, 0, 'CONFIDENCIAL' if self.lang == 'es' else 'CONFIDENTIAL')
-            self.restoreState()
-
-
-# ─── COMPONENTES VISUALES ─────────────────────────────────────────────────────
-def section_header(title, styles):
-    t = Table([[Paragraph(title, styles['h_section'])]], colWidths=[17*cm])
-    t.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), DARK2),
-        ('LEFTPADDING',  (0,0), (-1,-1), 14),
-        ('RIGHTPADDING', (0,0), (-1,-1), 14),
-        ('TOPPADDING',   (0,0), (-1,-1), 10),
-        ('BOTTOMPADDING',(0,0), (-1,-1), 10),
-        ('LINEBELOW', (0,0), (-1,-1), 2.5, GOLD),
-    ]))
-    return t
-
-
-def kpi_row(kpis, styles):
-    n = len(kpis)
-    cw = 17*cm / n
-    row_vals = [Paragraph(k[0], styles['kpi_val']) for k in kpis]
-    row_lbls = [Paragraph(k[1], styles['kpi_lbl']) for k in kpis]
-    t = Table([row_vals, row_lbls], colWidths=[cw]*n)
-    ts = [
-        ('BACKGROUND', (0,0), (-1,-1), DARK3),
-        ('TOPPADDING',    (0,0), (-1,0), 18), ('BOTTOMPADDING', (0,0), (-1,0), 4),
-        ('TOPPADDING',    (0,1), (-1,1), 2),  ('BOTTOMPADDING', (0,1), (-1,1), 16),
-        ('LEFTPADDING',   (0,0), (-1,-1), 6),
-        ('RIGHTPADDING',  (0,0), (-1,-1), 6),
-        ('BOX', (0,0), (-1,-1), 0.5, BORDER),
-        ('LINEAFTER', (0,0), (-2,-1), 0.5, BORDER),
-    ]
-    for i in range(n):
-        ts.append(('LINEABOVE', (i,0), (i,0), 3, GOLD))
-    t.setStyle(TableStyle(ts))
-    return t
-
-
-def info_table(rows, styles, col_w=(5.5*cm, 11.5*cm)):
-    data = [[Paragraph(r[0], styles['label']), Paragraph(str(r[1]) if r[1] else 'N/D', styles['value'])] for r in rows]
-    t = Table(data, colWidths=list(col_w))
-    t.setStyle(TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('TOPPADDING',    (0,0), (-1,-1), 7),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 7),
-        ('LEFTPADDING',  (0,0), (0,-1), 2),
-        ('LEFTPADDING',  (1,0), (1,-1), 10),
-        ('LINEBELOW', (0,0), (-1,-2), 0.3, BORDER),
-        ('BACKGROUND', (0,0), (-1,-1), DARK2),
-    ]))
-    return t
-
-
-def score_bar(label, value, max_val=10, width=16*cm, styles=None):
-    """Horizontal score bar with gold fill"""
-    bar_w = width - 4*cm
-    fill_w = bar_w * min(value / max_val, 1)
-
-    d = Drawing(width, 22)
-    # Label
-    d.add(String(0, 7, label, fontName='Helvetica', fontSize=8, textColor=MUTED2))
-    # Background track
-    d.add(Rect(4.5*cm, 6, bar_w, 10, fillColor=DARK3, strokeColor=BORDER, strokeWidth=0.5))
-    # Fill
-    if fill_w > 0:
-        d.add(Rect(4.5*cm, 6, fill_w, 10, fillColor=GOLD, strokeColor=None, strokeWidth=0))
-    # Value
-    d.add(String(width - 1, 7, f"{value:.1f}", fontName='Helvetica-Bold', fontSize=8,
-                 textAnchor='end', textColor=GOLD))
-    return d
-
-
-def radar_chart(labels, values, size=210):
-    """Radar/spider chart as ReportLab Drawing"""
-    d = Drawing(size, size)
+def _svg_radar(labels, values, size=160):
+    """Gráfico radar/araña en SVG puro — compatible con WeasyPrint."""
     n = len(labels)
-    if n < 3: return d
-    cx, cy = size/2, size/2
-    r = size/2 - 32
+    if n < 3:
+        return ''
+    cx = cy = size / 2
+    r = size / 2 - 28
 
-    # Grid polygons
+    parts = []
+
+    # Niveles de la cuadrícula
     for level in [0.25, 0.5, 0.75, 1.0]:
         pts = []
         for i in range(n):
-            ang = -math.pi/2 + 2*math.pi*i/n
-            pts += [cx + r*level*math.cos(ang), cy + r*level*math.sin(ang)]
-        pts += [pts[0], pts[1]]
-        d.add(Polygon(pts, fillColor=colors.Color(0.07,0.1,0.17, 0.6 if level==1 else 0.0),
-                      strokeColor=BORDER, strokeWidth=0.6))
+            ang = -math.pi / 2 + 2 * math.pi * i / n
+            pts.append(f"{cx + r*level*math.cos(ang):.1f},{cy + r*level*math.sin(ang):.1f}")
+        fill = 'rgba(215,181,109,0.07)' if level == 1.0 else 'none'
+        parts.append(f'<polygon points="{" ".join(pts)}" fill="{fill}" stroke="rgba(215,181,109,0.30)" stroke-width="0.6"/>')
 
-    # Spokes
+    # Ejes radiales
     for i in range(n):
-        ang = -math.pi/2 + 2*math.pi*i/n
-        d.add(Line(cx, cy, cx+r*math.cos(ang), cy+r*math.sin(ang),
-                   strokeColor=BORDER, strokeWidth=0.6))
-
-    # Data polygon
-    pts = []
-    for i, v in enumerate(values):
-        ang = -math.pi/2 + 2*math.pi*i/n
-        frac = min(max(v/10.0, 0), 1)
-        pts += [cx + r*frac*math.cos(ang), cy + r*frac*math.sin(ang)]
-    pts += [pts[0], pts[1]]
-    d.add(Polygon(pts, fillColor=colors.Color(0.788,0.659,0.298,0.28),
-                  strokeColor=GOLD, strokeWidth=2))
-
-    # Dots + value labels
-    for i, v in enumerate(values):
-        ang = -math.pi/2 + 2*math.pi*i/n
-        frac = min(max(v/10.0, 0), 1)
-        x = cx + r*frac*math.cos(ang)
-        y = cy + r*frac*math.sin(ang)
-        d.add(Circle(x, y, 4.5, fillColor=GOLD, strokeColor=WHITE, strokeWidth=1))
-        # small value
-        vx = cx + (r*frac+12)*math.cos(ang)
-        vy = cy + (r*frac+12)*math.sin(ang) - 3
-        d.add(String(vx, vy, f"{v:.0f}", fontName='Helvetica-Bold', fontSize=7,
-                     textAnchor='middle', fillColor=GOLD))
-
-    # Labels
-    for i, lbl in enumerate(labels):
-        ang = -math.pi/2 + 2*math.pi*i/n
-        lx = cx + (r+22)*math.cos(ang)
-        ly = cy + (r+22)*math.sin(ang) - 4
-        d.add(String(lx, ly, lbl, fontName='Helvetica-Bold', fontSize=7.5,
-                     textAnchor='middle', fillColor=MUTED2))
-    return d
-
-
-def bar_chart_h(items, max_val=None, width=16*cm, height=None):
-    """Horizontal bar chart: items = [(label, value, color?), ...]"""
-    bar_h = 22
-    gap   = 8
-    n     = len(items)
-    h     = height or (n * (bar_h + gap) + 10)
-    if not max_val:
-        max_val = max((v for _,v,*_ in items), default=1)
-    bar_w = width - 5.5*cm
-
-    d = Drawing(width, h)
-    for i, item in enumerate(items):
-        lbl, val = item[0], item[1]
-        col = item[2] if len(item) > 2 else GOLD
-        y = h - (i+1)*(bar_h+gap)
-        # Label
-        d.add(String(0, y+6, lbl, fontName='Helvetica', fontSize=8.5, textColor=MUTED2))
-        # Track
-        d.add(Rect(5.5*cm, y, bar_w, bar_h,
-                   fillColor=DARK3, strokeColor=BORDER, strokeWidth=0.5))
-        # Fill
-        fw = bar_w * min(val/max_val, 1)
-        if fw > 0:
-            d.add(Rect(5.5*cm, y, fw, bar_h, fillColor=col, strokeColor=None, strokeWidth=0))
-        # Value label
-        d.add(String(5.5*cm + fw + 6, y+7,
-                     fmt_eur(val) if val > 100 else f"{val:.1f}",
-                     fontName='Helvetica-Bold', fontSize=8, textColor=col))
-    return d
-
-
-def premium_score_gauge(score, max_val=10, width=120, height=70, label=''):
-    """Semi-circular gauge for premium score"""
-    d = Drawing(width, height + 10)
-    cx = width / 2
-    cy = 10
-
-    # Arc background (grey)
-    steps = 60
-    pts_bg = []
-    r = width/2 - 8
-    for s in range(steps+1):
-        ang = math.pi + math.pi * s/steps
-        pts_bg += [cx + r*math.cos(ang), cy + r*math.sin(ang)]
-    # Draw as polygon (approximate arc)
-    for s in range(steps):
-        ang1 = math.pi + math.pi*s/steps
-        ang2 = math.pi + math.pi*(s+1)/steps
-        x1 = cx + r*math.cos(ang1); y1 = cy + r*math.sin(ang1)
-        x2 = cx + r*math.cos(ang2); y2 = cy + r*math.sin(ang2)
-        x3 = cx + (r-12)*math.cos(ang2); y3 = cy + (r-12)*math.sin(ang2)
-        x4 = cx + (r-12)*math.cos(ang1); y4 = cy + (r-12)*math.sin(ang1)
-        frac = s/steps
-        base_col = GOLD if frac <= score/max_val else DARK3
-        d.add(Polygon([x1,y1,x2,y2,x3,y3,x4,y4,x1,y1],
-                      fillColor=base_col, strokeColor=DARK2, strokeWidth=0.5))
-
-    # Center value
-    d.add(String(cx, cy + r/2 - 2, f"{score:.1f}", fontName='Helvetica-Bold', fontSize=18,
-                 textAnchor='middle', fillColor=GOLD))
-    d.add(String(cx, cy + r/2 - 18, f"/ {max_val}", fontName='Helvetica', fontSize=9,
-                 textAnchor='middle', fillColor=MUTED))
-    if label:
-        d.add(String(cx, cy - 8, label, fontName='Helvetica-Bold', fontSize=7.5,
-                     textAnchor='middle', fillColor=MUTED2))
-    return d
-
-
-def image_placeholder(width, height, label, sub=''):
-    """Placeholder rectangle for recommended images"""
-    d = Drawing(width, height)
-    d.add(Rect(0, 0, width, height, fillColor=DARK3, strokeColor=BORDER, strokeWidth=1))
-    # Camera icon area
-    cx, cy = width/2, height/2
-    d.add(String(cx, cy+8, '📷', fontName='Helvetica', fontSize=18, textAnchor='middle', fillColor=MUTED))
-    if label:
-        d.add(String(cx, cy-12, label, fontName='Helvetica-Bold', fontSize=8,
-                     textAnchor='middle', fillColor=MUTED2))
-    if sub:
-        d.add(String(cx, cy-24, sub[:50], fontName='Helvetica', fontSize=7,
-                     textAnchor='middle', fillColor=MUTED))
-    return d
-
-
-# ─── SECCIONES DEL DOSSIER ────────────────────────────────────────────────────
-def build_cover(data, content, styles, lang):
-    L = LABELS[lang]
-    story = []
-    story.append(Spacer(1, 2.2*cm))
-    # Badge
-    tipos_str = ('INVERSORES' if data.get('tipo_dossier') == 'inversores' else 'PARTICULARES')
-    badge_sty = ParagraphStyle('bg', fontName='Helvetica-Bold', fontSize=9,
-                                textColor=DARK, alignment=TA_CENTER, leading=12)
-    badge_t = Table([[Paragraph(tipos_str, badge_sty)]], colWidths=[5*cm])
-    badge_t.setStyle(TableStyle([
-        ('BACKGROUND', (0,0),(-1,-1), GOLD),
-        ('TOPPADDING', (0,0),(-1,-1), 5), ('BOTTOMPADDING',(0,0),(-1,-1), 5),
-        ('ROUNDEDCORNERS', [12,12,12,12]),
-    ]))
-    story.append(badge_t)
-    story.append(Spacer(1, 0.7*cm))
-    # Type
-    tipo_map = {
-        'es': {'apartamento':'Apartamento','atico':'Ático Penthouse','casa':'Casa Unifamiliar',
-               'villa':'Villa de Lujo','local':'Local Comercial','oficina':'Oficina Corporativa',
-               'solar':'Solar Edificable','edificio':'Edificio Completo','nave':'Nave Industrial','':'Propiedad'},
-        'en': {'apartamento':'Apartment','atico':'Penthouse','casa':'Detached House',
-               'villa':'Luxury Villa','local':'Commercial Premises','oficina':'Corporate Office',
-               'solar':'Building Plot','edificio':'Full Building','nave':'Industrial Unit','':'Property'},
-    }
-    tipo_txt = tipo_map[lang].get(data.get('tipo_propiedad',''), tipo_map[lang][''])
-    story.append(Paragraph(tipo_txt.upper(), styles['cover_s']))
-    story.append(Spacer(1, 0.3*cm))
-    # Address
-    story.append(Paragraph(data.get('direccion', 'Propiedad Premium'), styles['cover_t']))
-    story.append(Spacer(1, 0.3*cm))
-    zona_str = ', '.join(filter(None, [data.get('barrio',''), data.get('ciudad','')]))
-    if zona_str:
-        story.append(Paragraph(f"📍 {zona_str}", styles['cover_m']))
-    story.append(Spacer(1, 1*cm))
-    story.append(HRFlowable(width='55%', thickness=2, color=GOLD, hAlign='CENTER'))
-    story.append(Spacer(1, 0.8*cm))
-    # Price
-    story.append(Paragraph(fmt_eur(data.get('precio_venta')), styles['cover_p']))
-    story.append(Spacer(1, 0.3*cm))
-    # Quick stats
-    parts = []
-    if data.get('metros_construidos'): parts.append(f"📐 {data['metros_construidos']} m²")
-    if data.get('dormitorios'): parts.append(f"🛏 {data['dormitorios']}")
-    if data.get('banos'): parts.append(f"🚿 {data['banos']}")
-    if parts:
-        story.append(Paragraph('   ·   '.join(parts), styles['cover_m']))
-    story.append(Spacer(1, 1.2*cm))
-    story.append(HRFlowable(width='35%', thickness=1,
-                             color=colors.Color(1,1,1,0.15), hAlign='CENTER'))
-    story.append(Spacer(1, 0.8*cm))
-    # Meta
-    fecha = datetime.now().strftime('%d / %m / %Y')
-    ref   = f"DOS-{datetime.now().strftime('%Y%m%d%H%M')}"
-    for line in filter(None, [
-        f"<b>{L['presented_by']}:</b>   {data.get('nombre_agente','')}",
-        f"<b>{L['presented_to']}:</b>   {data.get('nombre_destinatario','')}",
-        f"<b>{L['fecha']}:</b>   {fecha}",
-        f"<b>{L['ref']}:</b>   {ref}",
-    ]):
-        story.append(Paragraph(line, styles['cover_m']))
-        story.append(Spacer(1, 0.18*cm))
-    story.append(PageBreak())
-    return story
-
-
-def build_exec_summary(data, content, styles, lang):
-    L = LABELS[lang]
-    fin = content['financials']
-    story = [Spacer(1, 0.5*cm), section_header(L['exec'], styles), Spacer(1, 0.4*cm)]
-    # Executive summary text
-    story.append(Paragraph(content['exec_summary'], styles['body']))
-    story.append(Spacer(1, 0.5*cm))
-    # KPI row
-    kpis = [(fmt_eur(data.get('precio_venta')), L['precio'])]
-    m2 = safe_float(data.get('metros_construidos'))
-    precio = safe_float(data.get('precio_venta'))
-    if m2 and precio:
-        kpis.append((fmt_eur(precio/m2), L['precio_m2']))
-    if data.get('tipo_dossier') == 'inversores' and fin.get('yield_bruto',0) > 0:
-        kpis.append((fmt_pct(fin['yield_bruto']), L['yield_bruto']))
-        if fin.get('payback',0) > 0:
-            kpis.append((f"{fin['payback']:.1f} {L['anos']}", L['payback']))
-    if len(kpis) >= 2:
-        story.append(kpi_row(kpis[:4], styles))
-    story.append(Spacer(1, 0.5*cm))
-
-    # Premium score gauges
-    ps = content['premium_score']
-    ls = content['loc_scores']
-    avg_loc = round(sum(ls.values())/len(ls), 1)
-    overall = round((ps + avg_loc)/2, 1)
-    gauge_data = [
-        (overall, 'Score Global' if lang=='es' else 'Overall Score'),
-        (ps, 'Premium' if lang=='es' else 'Premium'),
-        (avg_loc, 'Ubicación' if lang=='es' else 'Location'),
-    ]
-    if data.get('tipo_dossier') == 'inversores' and content.get('inv_scores'):
-        inv_s = content['inv_scores']
-        avg_inv = round(sum(inv_s.values())/len(inv_s), 1)
-        gauge_data.append((avg_inv, 'Inversión' if lang=='es' else 'Investment'))
-
-    gauges = [premium_score_gauge(g[0], label=g[1]) for g in gauge_data[:4]]
-    cw = 17*cm / len(gauges)
-    gt = Table([gauges], colWidths=[cw]*len(gauges))
-    gt.setStyle(TableStyle([
-        ('BACKGROUND', (0,0),(-1,-1), DARK2),
-        ('ALIGN', (0,0),(-1,-1), 'CENTER'),
-        ('VALIGN', (0,0),(-1,-1), 'MIDDLE'),
-        ('TOPPADDING', (0,0),(-1,-1), 14),
-        ('BOTTOMPADDING', (0,0),(-1,-1), 14),
-        ('BOX', (0,0),(-1,-1), 0.5, BORDER),
-        ('LINEAFTER', (0,0),(-2,-1), 0.5, BORDER),
-    ]))
-    story.append(gt)
-    story.append(PageBreak())
-    return story
-
-
-def build_location(data, content, styles, lang):
-    L = LABELS[lang]
-    sec_key = 'lifestyle' if data.get('tipo_dossier') != 'inversores' else 'zona'
-    story = [Spacer(1, 0.5*cm), section_header(L[sec_key], styles), Spacer(1, 0.4*cm)]
-
-    # Main text
-    story.append(Paragraph(content['zona_text'].replace('\n\n', '<br/><br/>'), styles['body']))
-    story.append(Spacer(1, 0.4*cm))
-
-    # Score bars
-    ls = content['loc_scores']
-    labels_es = ['Conectividad', 'Transporte', 'Servicios', 'Comercios',
-                 'Perfil Socioecon.', 'Crecimiento', 'Atractivo Resid.', 'Atractivo Inv.']
-    labels_en = ['Connectivity', 'Transport', 'Services', 'Commerce',
-                 'Socioeconomic', 'Growth', 'Residential', 'Investor']
-    bar_labels = labels_es if lang == 'es' else labels_en
-    bar_vals   = list(ls.values())
-
-    # Two-column: bars left (as table), radar right
-    bar_rows = [[score_bar(lbl, val, width=8.5*cm, styles=styles)]
-                for lbl, val in zip(bar_labels, bar_vals)]
-    bars_drawing = Table(bar_rows, colWidths=[9*cm])
-    bars_drawing.setStyle(TableStyle([
-        ('TOPPADDING',    (0,0),(-1,-1), 2),
-        ('BOTTOMPADDING', (0,0),(-1,-1), 2),
-        ('LEFTPADDING',   (0,0),(-1,-1), 0),
-        ('RIGHTPADDING',  (0,0),(-1,-1), 0),
-    ]))
-
-    radar_labels_es = ['Conect.','Transport.','Servicios','Comercios','Socioecon.','Crecim.','Resid.','Inversor']
-    radar_labels_en = ['Connec.','Transport','Services','Commerce','Socioecon.','Growth','Resid.','Investor']
-    rl = radar_labels_es if lang == 'es' else radar_labels_en
-    radar = radar_chart(rl, bar_vals, size=190)
-
-    loc_table = Table([[bars_drawing, radar]], colWidths=[9.5*cm, 7.5*cm])
-    loc_table.setStyle(TableStyle([
-        ('VALIGN', (0,0),(-1,-1), 'TOP'),
-        ('LEFTPADDING', (0,0),(-1,-1), 0),
-        ('RIGHTPADDING', (0,0),(-1,-1), 0),
-        ('TOPPADDING', (0,0),(-1,-1), 0),
-        ('BOTTOMPADDING', (0,0),(-1,-1), 0),
-    ]))
-    story.append(loc_table)
-    story.append(Spacer(1, 0.4*cm))
-
-    # Zone image placeholder
-    img_lbl = content.get('img_recs', {}).get('zona', 'Vista de la zona')
-    story.append(image_placeholder(17*cm, 3.5*cm, '📸 ' + ('IMAGEN RECOMENDADA: VISTA DE LA ZONA' if lang=='es' else 'RECOMMENDED IMAGE: AREA VIEW'), img_lbl[:60]))
-    story.append(PageBreak())
-    return story
-
-
-def build_financial(data, content, styles, lang):
-    L = LABELS[lang]
-    fin = content['financials']
-    story = [Spacer(1, 0.5*cm), section_header(L['financiero'], styles), Spacer(1, 0.4*cm)]
-
-    # Main text
-    story.append(Paragraph(content['financial_text'].replace('\n\n', '<br/><br/>'), styles['body']))
-    story.append(Spacer(1, 0.5*cm))
-
-    # KPI row
-    kpis_fin = []
-    if fin.get('yield_bruto',0):  kpis_fin.append((fmt_pct(fin['yield_bruto']), L['yield_bruto']))
-    if fin.get('yield_neto',0):   kpis_fin.append((fmt_pct(fin['yield_neto']),  L['yield_neto']))
-    if fin.get('payback',0):      kpis_fin.append((f"{fin['payback']:.1f} {L['anos']}", L['payback']))
-    if fin.get('roi_5y',0):       kpis_fin.append((fmt_pct(fin['roi_5y']), L['roi_5y']))
-    if kpis_fin:
-        story.append(kpi_row(kpis_fin[:4], styles))
-        story.append(Spacer(1, 0.5*cm))
-
-    # Financial detail table
-    detail = []
-    if fin.get('ingresos_brutos',0):
-        p_green = ParagraphStyle('g', fontName='Helvetica-Bold', fontSize=10, textColor=SUCCESS, leading=13)
-        p_red   = ParagraphStyle('r', fontName='Helvetica', fontSize=10, textColor=DANGER, leading=13)
-        p_redb  = ParagraphStyle('rb', fontName='Helvetica-Bold', fontSize=10, textColor=DANGER, leading=13)
-        p_gold  = ParagraphStyle('gb', fontName='Helvetica-Bold', fontSize=11, textColor=GOLD, leading=14)
-        p_sub   = ParagraphStyle('su', fontName='Helvetica', fontSize=9, textColor=MUTED, leading=12)
-        detail.append([Paragraph(L['ingresos'], STYLES['label']),
-                       Paragraph(fmt_eur(fin['ingresos_brutos']), p_green)])
-        for k, v in [(L['comunidad'],fin.get('gas_com_anual',0)), (L['ibi'],fin.get('ibi',0)),
-                     (L['otros'],fin.get('otros',0)), (L['gestion'],fin.get('gestion',0))]:
-            if v > 0:
-                detail.append([Paragraph(f"  · {k}", p_sub), Paragraph(f"- {fmt_eur(v)}", p_red)])
-        detail.append([Paragraph(L['gastos'], STYLES['label']),
-                       Paragraph(f"- {fmt_eur(fin['gastos_totales'])}", p_redb)])
-        if fin.get('reforma',0):
-            detail.append([Paragraph(L['reforma'], STYLES['label']),
-                           Paragraph(f"- {fmt_eur(fin['reforma'])}", p_red)])
-            detail.append([Paragraph(L['inv_total'], STYLES['label']),
-                           Paragraph(fmt_eur(fin['inversion_total']),
-                                     ParagraphStyle('it',fontName='Helvetica-Bold',fontSize=10,textColor=TEXT,leading=13))])
-        detail.append([Paragraph(L['neto'], ParagraphStyle('nl',fontName='Helvetica-Bold',fontSize=10,textColor=TEXT,leading=13)),
-                       Paragraph(fmt_eur(fin['ingresos_netos']), p_gold)])
-
-        dt = Table(detail, colWidths=[10*cm, 7*cm])
-        dt.setStyle(TableStyle([
-            ('TOPPADDING',    (0,0),(-1,-1), 7), ('BOTTOMPADDING',(0,0),(-1,-1), 7),
-            ('LEFTPADDING',   (0,0),(-1,-1), 12),
-            ('LINEBELOW',     (0,0),(-1,-2), 0.3, BORDER),
-            ('BACKGROUND',    (0,0),(-1,-1), DARK2),
-            ('BACKGROUND',    (0,-1),(-1,-1), DARK3),
-            ('LINEABOVE',     (0,-1),(-1,-1), 1.5, GOLD),
-        ]))
-        story.append(dt)
-
-    story.append(Spacer(1, 0.3*cm))
-    story.append(Paragraph(L['nota'], STYLES['note']))
-    story.append(PageBreak())
-    return story
-
-
-def build_investment(data, content, styles, lang):
-    L = LABELS[lang]
-    inv = content.get('inv_scores', {})
-    if not inv: return []
-
-    story = [Spacer(1, 0.5*cm), section_header(L['inversion'], styles), Spacer(1, 0.4*cm)]
-
-    lbl_es = ['Rentabilidad','Seguridad','Liquidez','Escalabilidad','Posicion.','Demanda','Diferenc.']
-    lbl_en = ['Yield','Safety','Liquidity','Scalability','Positioning','Demand','Differentiation']
-    rlabels = lbl_es if lang == 'es' else lbl_en
-    rvals   = list(inv.values())
-
-    # Radar + bar side by side
-    radar   = radar_chart(rlabels, rvals[:len(rlabels)], size=200)
-    inv_bar_data = list(zip(rlabels, rvals[:len(rlabels)]))
-    bars = bar_chart_h(inv_bar_data, max_val=10, width=8.5*cm)
-
-    tbl = Table([[radar, bars]], colWidths=[10*cm, 7*cm])
-    tbl.setStyle(TableStyle([
-        ('VALIGN',(0,0),(-1,-1),'TOP'),
-        ('LEFTPADDING',(0,0),(-1,-1),0), ('RIGHTPADDING',(0,0),(-1,-1),0),
-        ('TOPPADDING',(0,0),(-1,-1),0), ('BOTTOMPADDING',(0,0),(-1,-1),0),
-    ]))
-    story.append(tbl)
-    story.append(Spacer(1, 0.4*cm))
-
-    # Score summary table
-    avg = round(sum(rvals)/len(rvals), 1)
-    sum_rows = []
-    for lbl, val in zip(rlabels, rvals):
-        bar_d = bar_chart_h([(lbl, val)], max_val=10, width=7*cm, height=30)
-        sum_rows.append([Paragraph(lbl, STYLES['label']),
-                         bar_d,
-                         Paragraph(f"{val:.1f}/10", ParagraphStyle('sv',fontName='Helvetica-Bold',fontSize=10,textColor=GOLD,leading=13,alignment=TA_RIGHT))])
-    sum_t = Table(sum_rows, colWidths=[4*cm, 9.5*cm, 3.5*cm])
-    sum_t.setStyle(TableStyle([
-        ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
-        ('TOPPADDING',(0,0),(-1,-1),4), ('BOTTOMPADDING',(0,0),(-1,-1),4),
-        ('LEFTPADDING',(0,0),(-1,-1),8), ('RIGHTPADDING',(0,0),(-1,-1),8),
-        ('LINEBELOW',(0,0),(-1,-2),0.3,BORDER),
-        ('BACKGROUND',(0,0),(-1,-1),DARK2),
-    ]))
-    story.append(sum_t)
-    story.append(Spacer(1, 0.3*cm))
-    avg_text = (f"Puntuación media del activo en los factores clave de inversión: <b>{avg}/10</b>" if lang=='es' else
-                f"Asset average score across key investment factors: <b>{avg}/10</b>")
-    story.append(Paragraph(avg_text, STYLES['body']))
-    story.append(PageBreak())
-    return story
-
-
-def build_commercial(data, content, styles, lang):
-    L = LABELS[lang]
-    com = content['commercial']
-    story = [Spacer(1, 0.5*cm), section_header(L['comercial'], styles), Spacer(1, 0.4*cm)]
-
-    # Value proposition box
-    vp_sty = ParagraphStyle('vp', fontName='Helvetica-Bold', fontSize=11, textColor=GOLD, leading=16, spaceAfter=8)
-    vp_box = Table([[Paragraph(com['propuesta_valor'], vp_sty)]], colWidths=[17*cm])
-    vp_box.setStyle(TableStyle([
-        ('BACKGROUND',(0,0),(-1,-1), DARK3),
-        ('TOPPADDING',(0,0),(-1,-1),14), ('BOTTOMPADDING',(0,0),(-1,-1),14),
-        ('LEFTPADDING',(0,0),(-1,-1),18), ('RIGHTPADDING',(0,0),(-1,-1),18),
-        ('LINEBELOW',(0,0),(-1,-1),2,GOLD),
-        ('LINELEFT',(0,0),(0,-1),4,GOLD),
-    ]))
-    story.append(vp_box)
-    story.append(Spacer(1, 0.5*cm))
-
-    # Two-column: args + buyer profile
-    args_text = ''.join(f"<br/>✦  {a}" for a in com['argumentos'])
-    opp_text  = ''.join(f"<br/>▸  {o}" for o in com['oportunidades'])
-
-    left_col = [
-        Paragraph(f"<b>{L['args']}</b>", STYLES['label']), Spacer(1,0.15*cm),
-        Paragraph(args_text.lstrip('<br/>'), STYLES['bullet']), Spacer(1,0.3*cm),
-        Paragraph(f"<b>{L['oportunidades']}</b>", STYLES['label']), Spacer(1,0.15*cm),
-        Paragraph(opp_text.lstrip('<br/>'), STYLES['bullet']),
-    ]
-    right_col = [
-        Paragraph(f"<b>{L['perfil']}</b>", STYLES['label']), Spacer(1,0.15*cm),
-        Paragraph(com['perfil_comprador'], STYLES['body']),
-    ]
-    lt = Table([[left_col, right_col]], colWidths=[9.5*cm, 7.5*cm])
-    lt.setStyle(TableStyle([
-        ('VALIGN',(0,0),(-1,-1),'TOP'),
-        ('LEFTPADDING',(0,0),(-1,-1),0), ('RIGHTPADDING',(0,0),(-1,-1),0),
-        ('LEFTPADDING',(1,0),(1,-1),20),
-    ]))
-    story.append(lt)
-    story.append(PageBreak())
-    return story
-
-
-def build_narrative(data, content, styles, lang):
-    L = LABELS[lang]
-    story = [Spacer(1, 0.5*cm), section_header(L['narrativa'], styles), Spacer(1, 0.4*cm)]
-    story.append(Paragraph(content['narrative'].replace('\n\n', '<br/><br/>'), styles['body']))
-    story.append(Spacer(1, 0.5*cm))
-    # Lifestyle image placeholder
-    img_lbl = content.get('img_recs', {}).get('lifestyle', '')
-    story.append(image_placeholder(17*cm, 4*cm,
-        '📸 ' + ('IMAGEN RECOMENDADA: LIFESTYLE' if lang=='es' else 'RECOMMENDED IMAGE: LIFESTYLE'),
-        img_lbl[:65]))
-    story.append(PageBreak())
-    return story
-
-
-def build_risks(data, content, styles, lang):
-    L = LABELS[lang]
-    story = [Spacer(1, 0.5*cm), section_header(L['riesgos'], styles), Spacer(1, 0.4*cm)]
-
-    nivel_map = {
-        'es': {'alto': ('ALTO', DANGER), 'muy alto': ('MUY ALTO', DANGER),
-               'medio': ('MEDIO', WARNING), 'bajo': ('BAJO', SUCCESS), 'muy bajo': ('MUY BAJO', SUCCESS)},
-        'en': {'alto': ('HIGH', DANGER), 'muy alto': ('VERY HIGH', DANGER),
-               'medio': ('MEDIUM', WARNING), 'bajo': ('LOW', SUCCESS), 'muy bajo': ('VERY LOW', SUCCESS)},
-    }
-
-    hdr_sty = ParagraphStyle('rh', fontName='Helvetica-Bold', fontSize=9, textColor=WHITE, leading=12)
-    rows_data = [[
-        Paragraph(L['riesgo_col'], hdr_sty),
-        Paragraph(L['nivel'],      hdr_sty),
-        Paragraph(L['mitigacion'], hdr_sty),
-    ]]
-    for risk_item in content['riesgos']:
-        r_text, r_nivel, r_mit = risk_item
-        nivel_info = nivel_map[lang].get(r_nivel.lower(), ('N/D', MUTED))
-        nivel_label, nivel_col = nivel_info
-        nivel_sty = ParagraphStyle('ns', fontName='Helvetica-Bold', fontSize=8,
-                                   textColor=nivel_col, leading=12, alignment=TA_CENTER)
-        rows_data.append([
-            Paragraph(r_text, STYLES['body_sm']),
-            Paragraph(nivel_label, nivel_sty),
-            Paragraph(r_mit, STYLES['body_sm']),
-        ])
-
-    rt = Table(rows_data, colWidths=[5.5*cm, 2*cm, 9.5*cm])
-    ts = [
-        ('BACKGROUND',(0,0),(-1,0), DARK3),
-        ('BACKGROUND',(0,1),(-1,-1), DARK2),
-        ('TOPPADDING',   (0,0),(-1,-1), 8), ('BOTTOMPADDING',(0,0),(-1,-1), 8),
-        ('LEFTPADDING',  (0,0),(-1,-1), 10), ('RIGHTPADDING', (0,0),(-1,-1), 10),
-        ('LINEBELOW',    (0,0),(-1,-2), 0.4, BORDER),
-        ('LINEBELOW',    (0,0),(-1,0),  1.5, GOLD),
-        ('VALIGN',       (0,0),(-1,-1), 'TOP'),
-    ]
-    for i in range(1, len(rows_data), 2):
-        ts.append(('BACKGROUND', (0,i),(-1,i), colors.Color(0.08,0.13,0.2,1)))
-    rt.setStyle(TableStyle(ts))
-    story.append(rt)
-    story.append(PageBreak())
-    return story
-
-
-def build_gallery(foto_paths, content, styles, lang, max_photos=6):
-    if not foto_paths:
-        return []
-    L = LABELS[lang]
-    story = [Spacer(1, 0.5*cm), section_header(L['galeria'], styles), Spacer(1, 0.4*cm)]
-
-    # Load and lay out photos in a 2-col grid
-    photos = []
-    for path in foto_paths[:max_photos]:
-        try:
-            if HAS_PIL:
-                img = PILImage.open(path)
-                iw, ih = img.size
-                target_w = 8*cm
-                target_h = target_w * ih / iw
-                if target_h > 6*cm: target_h = 6*cm; target_w = target_h * iw / ih
-            else:
-                target_w, target_h = 8*cm, 6*cm
-            rl_img = RLImage(path, width=target_w, height=target_h)
-            photos.append(rl_img)
-        except Exception:
-            photos.append(image_placeholder(8*cm, 6*cm, 'Foto'))
-
-    # Pair into rows of 2
-    for i in range(0, len(photos), 2):
-        row = photos[i:i+2]
-        if len(row) < 2: row.append(Spacer(1,1))
-        pt = Table([row], colWidths=[8.5*cm, 8.5*cm])
-        pt.setStyle(TableStyle([
-            ('VALIGN',(0,0),(-1,-1),'TOP'),
-            ('ALIGN', (0,0),(-1,-1),'CENTER'),
-            ('TOPPADDING',(0,0),(-1,-1),4), ('BOTTOMPADDING',(0,0),(-1,-1),4),
-            ('LEFTPADDING',(0,0),(-1,-1),4), ('RIGHTPADDING',(0,0),(-1,-1),4),
-        ]))
-        story.append(pt)
-        story.append(Spacer(1, 0.2*cm))
-
-    # Image recommendations
-    img_recs = content.get('img_recs', {})
-    if img_recs:
-        story.append(Spacer(1, 0.4*cm))
-        story.append(Paragraph(L['img_recomendadas'], STYLES['label']))
-        story.append(Spacer(1, 0.2*cm))
-        rec_rows = []
-        keys_es = ['portada','galeria','lifestyle','zona','cierre']
-        keys_en = ['portada','galeria','lifestyle','zona','cierre']
-        lbls_es = [L['img_portada'], L['img_galeria'], L['img_lifestyle'], L['img_zona'], L['img_cierre']]
-        for k, lbl in zip(keys_es, lbls_es):
-            if k in img_recs:
-                rec_rows.append([Paragraph(f"<b>{lbl}:</b>", STYLES['label']),
-                                  Paragraph(img_recs[k], STYLES['body_sm'])])
-        if rec_rows:
-            rec_t = Table(rec_rows, colWidths=[3.5*cm, 13.5*cm])
-            rec_t.setStyle(TableStyle([
-                ('VALIGN',(0,0),(-1,-1),'TOP'),
-                ('TOPPADDING',(0,0),(-1,-1),5), ('BOTTOMPADDING',(0,0),(-1,-1),5),
-                ('LINEBELOW',(0,0),(-1,-2),0.3,BORDER),
-                ('BACKGROUND',(0,0),(-1,-1),DARK2),
-                ('LEFTPADDING',(0,0),(-1,-1),8),
-            ]))
-            story.append(rec_t)
-    story.append(PageBreak())
-    return story
-
-
-def build_conclusions(data, content, styles, lang):
-    L = LABELS[lang]
-    conc = content['conclusions']
-    story = [Spacer(1, 0.5*cm), section_header(L['conclusiones'], styles), Spacer(1, 0.4*cm)]
-
-    # Overall score prominent
-    overall = conc.get('overall', 0)
-    gauge = premium_score_gauge(overall, label='Score Final' if lang=='es' else 'Final Score', width=140, height=80)
-    g_t = Table([[gauge, Paragraph(conc['texto'].replace('\n\n','<br/><br/>'), styles['body'])]],
-                colWidths=[4.5*cm, 12.5*cm])
-    g_t.setStyle(TableStyle([
-        ('VALIGN',(0,0),(-1,-1),'TOP'),
-        ('LEFTPADDING',(0,0),(-1,-1),0), ('RIGHTPADDING',(0,0),(-1,-1),0),
-        ('LEFTPADDING',(1,0),(1,-1),16),
-    ]))
-    story.append(g_t)
-    story.append(Spacer(1, 0.5*cm))
-    # Recommendations
-    story.append(Paragraph(f"<b>{L['recomendaciones']}</b>", STYLES['label']))
-    story.append(Spacer(1, 0.15*cm))
-    for rec in conc.get('recomendaciones', []):
-        story.append(Paragraph(f"▸  {rec}", STYLES['bullet']))
-    story.append(Spacer(1, 0.4*cm))
-    # Image recommendation: cierre
-    img_cierre = content.get('img_recs',{}).get('cierre','')
-    story.append(image_placeholder(17*cm, 3*cm,
-        '📸 ' + ('IMAGEN RECOMENDADA: CIERRE DEL DOSSIER' if lang=='es' else 'RECOMMENDED IMAGE: DOSSIER CLOSING'),
-        img_cierre[:65]))
-    story.append(PageBreak())
-    return story
-
-
-def build_contact(data, content, styles, lang):
-    L = LABELS[lang]
-    story = [Spacer(1, 0.5*cm), section_header(L['contacto'], styles), Spacer(1, 0.6*cm)]
-
-    c_bold = ParagraphStyle('cb', fontName='Helvetica-Bold', fontSize=14, textColor=WHITE, leading=20)
-    c_text = ParagraphStyle('ct', fontSize=12, textColor=TEXT, leading=20)
-
-    if data.get('nombre_agente'):
-        story.append(Paragraph(data['nombre_agente'], c_bold))
-    for icon, field in [('📞', 'telefono_agente'), ('✉️', 'email_agente'), ('🌐', 'web_agente')]:
-        if data.get(field):
-            story.append(Paragraph(f"{icon}  {data[field]}", c_text))
-    story.append(Spacer(1, 0.6*cm))
-    story.append(HRFlowable(width='100%', thickness=1, color=BORDER))
-    story.append(Spacer(1, 0.5*cm))
-    story.append(Paragraph(L['nota'], STYLES['note']))
-    return story
-
-
-# ─── FUNCIÓN PRINCIPAL ────────────────────────────────────────────────────────
-def generate_dossier(data: dict, content: dict, lang: str = 'es') -> bytes:
-    buf = BytesIO()
-
-    def canvas_maker(filename, **kwargs):
-        kwargs.pop('lang', None)
-        kwargs.pop('data', None)
-        kwargs.pop('content', None)
-        return PremiumCanvas(filename, data=data, content=content, lang=lang, **kwargs)
-
-    doc = SimpleDocTemplate(
-        buf, pagesize=A4,
-        leftMargin=2*cm, rightMargin=2*cm,
-        topMargin=2.2*cm, bottomMargin=1.8*cm,
-        title=f"Dossier Premium — {data.get('direccion','')}",
-        author=data.get('nombre_agente',''),
-        subject='Dossier Inmobiliario Premium',
+        ang = -math.pi / 2 + 2 * math.pi * i / n
+        x2 = cx + r * math.cos(ang)
+        y2 = cy + r * math.sin(ang)
+        parts.append(f'<line x1="{cx:.1f}" y1="{cy:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" stroke="rgba(36,52,71,0.18)" stroke-width="0.5"/>')
+
+    # Polígono de datos
+    data_pts = []
+    for i in range(n):
+        ang = -math.pi / 2 + 2 * math.pi * i / n
+        v = min(max(float(values[i]) / 10.0, 0), 1)
+        data_pts.append(f"{cx + r*v*math.cos(ang):.1f},{cy + r*v*math.sin(ang):.1f}")
+    parts.append(f'<polygon points="{" ".join(data_pts)}" fill="rgba(215,181,109,0.25)" stroke="#d7b56d" stroke-width="1.8" stroke-linejoin="round"/>')
+
+    # Puntos de datos
+    for i in range(n):
+        ang = -math.pi / 2 + 2 * math.pi * i / n
+        v = min(max(float(values[i]) / 10.0, 0), 1)
+        px = cx + r * v * math.cos(ang)
+        py = cy + r * v * math.sin(ang)
+        parts.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="3.5" fill="#d7b56d" stroke="white" stroke-width="1.2"/>')
+
+    # Etiquetas
+    for i, label in enumerate(labels):
+        ang = -math.pi / 2 + 2 * math.pi * i / n
+        lx = cx + (r + 16) * math.cos(ang)
+        ly = cy + (r + 16) * math.sin(ang)
+        anchor = 'middle'
+        if lx < cx - 8:
+            anchor = 'end'
+        elif lx > cx + 8:
+            anchor = 'start'
+        parts.append(
+            f'<text x="{lx:.1f}" y="{ly + 3:.1f}" '
+            f'text-anchor="{anchor}" '
+            f'font-family="Inter,Arial,sans-serif" font-size="6.5" '
+            f'fill="#9b7638" font-weight="700" letter-spacing="0.8">'
+            f'{label.upper()}</text>'
+        )
+
+    return (
+        f'<svg viewBox="0 0 {size} {size}" width="{size}" height="{size}" '
+        f'xmlns="http://www.w3.org/2000/svg">{"".join(parts)}</svg>'
     )
 
+
+def _svg_bar(label, value, max_val=10, width=165, color='#d7b56d'):
+    """Barra horizontal SVG con relleno dorado — estilo del PDF anterior."""
+    h = 22
+    lbl_w = 52
+    val_w = 22
+    bar_w = width - lbl_w - val_w - 4
+    fill_w = bar_w * min(float(value) / max_val, 1)
+    pct_int = int(fill_w)
+    return (
+        f'<svg viewBox="0 0 {width} {h}" width="{width}" height="{h}" '
+        f'xmlns="http://www.w3.org/2000/svg">'
+        f'<text x="0" y="14" font-family="Inter,Arial,sans-serif" font-size="6.5" '
+        f'fill="#9b7638" font-weight="800" letter-spacing="0.8">{label.upper()}</text>'
+        f'<rect x="{lbl_w}" y="7" width="{bar_w}" height="7" rx="3.5" fill="rgba(36,52,71,0.10)"/>'
+        f'<rect x="{lbl_w}" y="7" width="{fill_w:.1f}" height="7" rx="3.5" fill="{color}"/>'
+        f'<text x="{width}" y="14" font-family="Inter,Arial,sans-serif" font-size="7.5" '
+        f'fill="#223246" font-weight="700" text-anchor="end">{_num(value)}</text>'
+        f'</svg>'
+    )
+
+
+def _svg_donut(pct, label, size=80, color='#d7b56d'):
+    """Mini donut chart SVG para métricas de inversión."""
+    cx = cy = size / 2
+    r = size / 2 - 10
+    circ = 2 * math.pi * r
+    dash = circ * min(float(pct) / 100.0, 1)
+    gap = circ - dash
+    return (
+        f'<svg viewBox="0 0 {size} {size}" width="{size}" height="{size}" '
+        f'xmlns="http://www.w3.org/2000/svg">'
+        f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="rgba(36,52,71,0.12)" stroke-width="6"/>'
+        f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="{color}" stroke-width="6" '
+        f'stroke-dasharray="{dash:.2f} {gap:.2f}" '
+        f'stroke-dashoffset="{circ/4:.2f}" stroke-linecap="round"/>'
+        f'<text x="{cx}" y="{cy+3}" text-anchor="middle" dominant-baseline="middle" '
+        f'font-family="Inter,Arial,sans-serif" font-size="11" font-weight="700" fill="#223246">'
+        f'{label}</text>'
+        f'</svg>'
+    )
+
+
+# ─── UNSPLASH ─────────────────────────────────────────────────────────────────
+
+_U = 'https://images.unsplash.com/photo-'
+IMGS = {
+    'city':       _U+'1477959858617-67f85cf4f1df?fm=jpg&q=80&w=700',
+    'building':   _U+'1486406146926-c627a92ad1ab?fm=jpg&q=80&w=700',
+    'skyline':    _U+'1518005020951-eccb494ad742?fm=jpg&q=80&w=700',
+    'park':       _U+'1441974231531-c6227db76b6e?fm=jpg&q=80&w=700',
+    'metro':      _U+'1474487548417-781cb71495f3?fm=jpg&q=80&w=700',
+    'restaurant': _U+'1414235077428-338989a2e8c0?fm=jpg&q=80&w=700',
+    'shopping':   _U+'1555529669-e69e7aa0ba9a?fm=jpg&q=80&w=700',
+    'school':     _U+'1580582932707-520aed937b7b?fm=jpg&q=80&w=700',
+    'hospital':   _U+'1586773860418-d37222d8fce3?fm=jpg&q=80&w=700',
+    'gym':        _U+'1534438327276-14e5300c3a48?fm=jpg&q=80&w=700',
+    'beach':      _U+'1507525428034-b723cf961d3e?fm=jpg&q=80&w=700',
+    'street':     _U+'1480714378408-67cf0d13bc1b?fm=jpg&q=80&w=700',
+    'plaza':      _U+'1558618666-fcd25c85cd64?fm=jpg&q=80&w=700',
+    'garden':     _U+'1416879595882-3373a0480b5b?fm=jpg&q=80&w=700',
+    'interior1':  _U+'1615529182904-14819c35db37?fm=jpg&q=80&w=700',
+    'interior2':  _U+'1586023492125-27b2c045efd7?fm=jpg&q=80&w=700',
+    'pool':       _U+'1519046904884-53d885cc3e68?fm=jpg&q=80&w=700',
+    'cover1':     _U+'1449824913935-59a10b8d2000?fm=jpg&q=80&w=1200',
+    'cover2':     _U+'1486406146926-c627a92ad1ab?fm=jpg&q=80&w=1200',
+    'terrace':    _U+'1555041469-68ad9154f720?fm=jpg&q=80&w=700',
+    'market':     _U+'1481437156560-3205f6a55735?fm=jpg&q=80&w=700',
+    'dining':     _U+'1517248135467-4c7edcad34c4?fm=jpg&q=80&w=700',
+}
+
+def _zone_imgs(data, lang):
+    srv = (data.get('servicios_cercanos') or '').lower()
+    es = lang == 'es'
+    pool = []
+    checks = [
+        (['metro','bus','tren','cercanias','tranvia','transporte'], 'metro', 'Transporte Publico', 'Public Transport'),
+        (['parque','jardin','verde','nature'], 'park', 'Parques y Jardines', 'Parks & Gardens'),
+        (['restaurante','bar','gastro','cafeteria'], 'restaurant', 'Gastronomia', 'Gastronomy'),
+        (['colegio','escuela','universidad','educacion'], 'school', 'Centros Educativos', 'Schools'),
+        (['hospital','clinica','medico','salud','farmacia'], 'hospital', 'Servicios Sanitarios', 'Healthcare'),
+        (['comercio','supermercado','tienda','shopping'], 'shopping', 'Zona Comercial', 'Shopping'),
+        (['playa','mar','costa'], 'beach', 'Playa', 'Beach'),
+        (['gimnasio','gym','deporte'], 'gym', 'Deportes', 'Sports'),
+    ]
+    for keywords, key, lbl_es, lbl_en in checks:
+        if any(k in srv for k in keywords):
+            pool.append((IMGS[key], lbl_es if es else lbl_en))
+    defaults = [
+        ('city', 'Entorno Urbano', 'Urban Environment'),
+        ('plaza', 'Plaza Principal', 'Main Square'),
+        ('street', 'Vias Principales', 'Main Streets'),
+        ('garden', 'Zonas Verdes', 'Green Spaces'),
+        ('market', 'Vida Comercial', 'Commercial Life'),
+        ('skyline', 'Panoramica', 'Skyline'),
+    ]
+    for key, lbl_es, lbl_en in defaults:
+        if len(pool) >= 6:
+            break
+        entry = (IMGS[key], lbl_es if es else lbl_en)
+        if entry not in pool:
+            pool.append(entry)
+    return pool[:6]
+
+def _service_imgs(lang):
+    es = lang == 'es'
+    return [
+        (IMGS['metro'],      'Metro y Transporte' if es else 'Metro & Transport'),
+        (IMGS['school'],     'Colegios'           if es else 'Schools'),
+        (IMGS['hospital'],   'Salud'              if es else 'Healthcare'),
+        (IMGS['restaurant'], 'Restauracion'       if es else 'Dining'),
+        (IMGS['shopping'],   'Comercios'          if es else 'Shopping'),
+        (IMGS['park'],       'Parques'            if es else 'Parks'),
+    ]
+
+
+# ─── CSS ──────────────────────────────────────────────────────────────────────
+
+def _css():
+    return """
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700;800&family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@page { size: A4; margin: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+    --ink:       #223246;
+    --ink-soft:  #405166;
+    --slate:     #52657a;
+    --pearl:     #fbf7ef;
+    --ivory:     #fffaf2;
+    --mist:      #edf5f8;
+    --sky:       #dceef6;
+    --champagne: #d7b56d;
+    --champ-soft:#f1dfad;
+    --bronze:    #9b7638;
+    --line:      rgba(36,52,71,0.14);
+    --line-gold: rgba(215,181,109,0.46);
+}
+
+body {
+    font-family: 'Inter', Arial, sans-serif;
+    background: var(--pearl);
+    color: var(--ink);
+    width: 210mm;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+/* ── PAGE SHELL ── */
+.page {
+    position: relative;
+    width: 210mm;
+    min-height: 297mm;
+    overflow: hidden;
+    page-break-after: always;
+    background:
+        radial-gradient(circle at 88% 6%, rgba(215,181,109,0.18), transparent 28%),
+        radial-gradient(circle at 6% 90%, rgba(183,217,232,0.28), transparent 32%),
+        linear-gradient(135deg, var(--ivory) 0%, var(--pearl) 44%, var(--mist) 100%);
+    isolation: isolate;
+}
+.page:last-child { page-break-after: auto; }
+
+/* double gold border — taken from user's template */
+.page::before {
+    content: '';
+    position: absolute;
+    inset: 9mm;
+    border: 1px solid rgba(215,181,109,0.34);
+    pointer-events: none;
+    z-index: 8;
+}
+.page::after {
+    content: '';
+    position: absolute;
+    inset: 12mm;
+    border: 1px solid rgba(36,52,71,0.07);
+    pointer-events: none;
+    z-index: 8;
+}
+.no-frame::before, .no-frame::after { display: none; }
+
+/* ── GRID OVERLAY ── */
+.decor-grid {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0.15;
+    background:
+        linear-gradient(90deg, rgba(36,52,71,0.10) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(36,52,71,0.08) 1px, transparent 1px);
+    background-size: 18mm 18mm;
+}
+
+/* ── ORBITAL DECORATION — from user's template ── */
+.decor-orbit {
+    position: absolute;
+    z-index: 2;
+    right: -22mm;
+    top: 20mm;
+    width: 112mm;
+    height: 112mm;
+    border-radius: 50%;
+    border: 1px solid rgba(215,181,109,0.22);
+    pointer-events: none;
+}
+.decor-orbit::after {
+    content: '';
+    position: absolute;
+    inset: 18mm;
+    border-radius: 50%;
+    border: 1px solid rgba(36,52,71,0.08);
+}
+
+/* ── INNER ── */
+.inner {
+    position: relative;
+    z-index: 3;
+    padding: 17mm 18mm 18mm;
+    min-height: 297mm;
+}
+
+/* ── TYPOGRAPHY — hybrid: Cormorant for headings, Inter for body ── */
+h1 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 38pt;
+    line-height: 0.92;
+    letter-spacing: -0.04em;
+    font-weight: 700;
+    color: var(--ink);
+}
+h2 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 24pt;
+    line-height: 1.06;
+    letter-spacing: -0.035em;
+    font-weight: 700;
+    color: var(--ink);
+    max-width: 150mm;
+}
+h3 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 15pt;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    font-weight: 700;
+    color: inherit;
+}
+h4 {
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 6.5pt;
+    letter-spacing: 0.20em;
+    text-transform: uppercase;
+    font-weight: 800;
+    color: var(--bronze);
+    margin-bottom: 2mm;
+}
+.lead {
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 10pt;
+    line-height: 1.65;
+    letter-spacing: -0.01em;
+    color: var(--ink-soft);
+    margin-bottom: 6mm;
+    max-width: 165mm;
+    font-weight: 400;
+}
+.text {
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 8pt;
+    line-height: 1.58;
+    color: var(--slate);
+    margin-top: 2mm;
+    font-weight: 400;
+}
+.eyebrow {
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 7pt;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    font-weight: 900;
+    color: var(--bronze);
+    margin-bottom: 3mm;
+}
+.micro {
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 5.5pt;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: rgba(36,52,71,0.45);
+}
+
+/* ── DECORATIVES ── */
+.gold-line {
+    width: 22mm;
+    height: 1.2mm;
+    border-radius: 99px;
+    background: linear-gradient(90deg, var(--champagne), var(--champ-soft), var(--bronze));
+    margin-bottom: 4.5mm;
+}
+.divider {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(215,181,109,0.55), rgba(36,52,71,0.09), transparent);
+    margin: 5.5mm 0;
+}
+
+/* ── SECTION HEAD ── */
+.section-head {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10mm;
+    align-items: start;
+    padding-top: 4.5mm;
+    border-top: 1px solid var(--line-gold);
+    margin-bottom: 8mm;
+}
+.section-num {
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 6.5pt;
+    letter-spacing: 0.20em;
+    text-transform: uppercase;
+    font-weight: 900;
+    color: rgba(36,52,71,0.35);
+    padding: 2.5mm 3mm;
+    border: 1px solid rgba(215,181,109,0.38);
+    background: rgba(255,255,255,0.60);
+    white-space: nowrap;
+    text-align: right;
+}
+
+/* ── FOOTER ── */
+.footer {
+    position: absolute;
+    left: 18mm;
+    right: 18mm;
+    bottom: 6mm;
+    display: flex;
+    justify-content: space-between;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 5.5pt;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: rgba(36,52,71,0.40);
+    padding-top: 2.5mm;
+    border-top: 1px solid rgba(215,181,109,0.26);
+}
+
+/* ── GRIDS ── */
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+.g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4mm; }
+.g4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 3.5mm; }
+
+/* ── CARDS ── */
+.card {
+    padding: 5mm;
+    border: 1px solid rgba(36,52,71,0.11);
+    background: linear-gradient(135deg, rgba(255,255,255,0.90), rgba(251,247,239,0.72));
+    border-left: 1.2mm solid var(--champagne);
+}
+.card.stone {
+    background: linear-gradient(135deg, rgba(239,231,218,0.96), rgba(255,250,242,0.80));
+    border-color: rgba(155,118,56,0.18);
+}
+.card.sky {
+    background: linear-gradient(135deg, rgba(237,245,248,0.96), rgba(220,238,246,0.82));
+    border-color: rgba(85,132,156,0.18);
+}
+.card.dark {
+    background: linear-gradient(135deg, #2c3e52, #384d65);
+    border: none;
+    border-left: 1.2mm solid var(--champ-soft);
+    color: #fff;
+}
+.card.dark .text { color: rgba(255,255,255,0.78); }
+.card.dark h4    { color: var(--champ-soft); }
+.card.dark h3    { color: #fff; }
+.card.gold {
+    background: linear-gradient(135deg, #c9a44a, #a87e32);
+    border: none;
+    border-left: 1.2mm solid rgba(255,255,255,0.45);
+    color: #fff;
+}
+.card.gold .text { color: rgba(255,255,255,0.84); }
+.card.gold h4    { color: #fff3cc; }
+
+/* ── KPIs ── */
+.kpi-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 4mm; margin: 5mm 0; }
+.kpi {
+    padding: 5mm 4mm;
+    background: rgba(255,255,255,0.90);
+    border: 1px solid rgba(36,52,71,0.11);
+}
+.kpi.dark {
+    background: linear-gradient(135deg, #2c3e52, #384d65);
+    border: none;
+}
+.kpi .num {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 20pt;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    font-weight: 700;
+    color: var(--ink);
+}
+.kpi.dark .num { color: var(--champ-soft); }
+.kpi .lbl {
+    margin-top: 3mm;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 5.8pt;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: rgba(36,52,71,0.60);
+}
+.kpi.dark .lbl { color: rgba(255,255,255,0.75); }
+
+/* ── NOTE / CALLOUT ── */
+.note {
+    padding: 4.5mm 5mm;
+    background: linear-gradient(135deg, rgba(255,255,255,0.90), rgba(241,223,173,0.16));
+    border-left: 1.6mm solid var(--champagne);
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 8.5pt;
+    line-height: 1.56;
+    color: var(--ink);
+    margin: 5mm 0;
+}
+
+/* ── TABLE ── */
+.dtable {
+    width: 100%;
+    border-collapse: collapse;
+    background: rgba(255,255,255,0.86);
+    border: 1px solid rgba(36,52,71,0.11);
+}
+.dtable th {
+    text-align: left;
+    padding: 3mm 4mm;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 5.8pt;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-weight: 800;
+    color: var(--bronze);
+    background: linear-gradient(90deg, rgba(241,223,173,0.38), rgba(237,245,248,0.62));
+    border-bottom: 1px solid rgba(36,52,71,0.10);
+}
+.dtable td {
+    padding: 2.8mm 4mm;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 8pt;
+    line-height: 1.45;
+    color: var(--ink-soft);
+    border-top: 1px solid rgba(36,52,71,0.06);
+    vertical-align: top;
+}
+.dtable td:first-child {
+    width: 36%;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+/* ── IMAGES ── */
+.img-box {
+    overflow: hidden;
+    border: 1px solid rgba(36,52,71,0.10);
+}
+.img-box img { display: block; width: 100%; object-fit: cover; }
+.img-cap {
+    padding: 2mm 3mm;
+    background: rgba(255,255,255,0.93);
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 5.5pt;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--ink);
+    border-top: 1px solid rgba(215,181,109,0.26);
+}
+
+/* ── VISUAL GALLERY ── */
+.vgallery { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3.5mm; margin: 5mm 0; }
+.vitem { border: 1px solid rgba(36,52,71,0.11); overflow: hidden; }
+.vitem img { display: block; width: 100%; height: 32mm; object-fit: cover; }
+.vcap {
+    padding: 2mm 3mm;
+    background: rgba(255,255,255,0.93);
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 5.5pt;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+/* ── SCORE BAR WRAPPER ── */
+.bars-block { display: flex; flex-direction: column; gap: 2.5mm; }
+.bar-row { display: flex; align-items: center; gap: 3mm; }
+
+/* ── ADVANTAGE ── */
+.adv {
+    display: grid;
+    grid-template-columns: 9mm 1fr;
+    gap: 3.5mm;
+    padding: 4mm;
+    background: rgba(255,255,255,0.88);
+    border: 1px solid rgba(36,52,71,0.11);
+    align-items: start;
+}
+.adv-n {
+    width: 8mm;
+    height: 8mm;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--champagne), var(--bronze));
+    color: #fff;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 6pt;
+    font-weight: 900;
+    text-align: center;
+    line-height: 8mm;
+    flex-shrink: 0;
+}
+
+/* ── TIMELINE ── */
+.timeline { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 4mm; margin: 5mm 0; }
+.step {
+    padding: 4mm;
+    background: rgba(255,255,255,0.88);
+    border: 1px solid rgba(36,52,71,0.11);
+}
+.step-n {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 18pt;
+    line-height: 1;
+    color: rgba(215,181,109,0.65);
+    font-weight: 700;
+    margin-bottom: 3mm;
+}
+
+/* ── PHOTO STRIP ── */
+.photo-strip { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 4mm; margin: 5mm 0; }
+.photo-stack { display: grid; gap: 4mm; grid-template-rows: 1fr 1fr; }
+
+/* ── COVER ── */
+.cover {
+    background: #0a1624;
+    color: #fff;
+}
+.cover-photo {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+}
+.cover-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.40;
+}
+.cover-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background:
+        linear-gradient(100deg, rgba(6,13,24,0.90) 0%, rgba(12,24,40,0.55) 55%, rgba(12,24,40,0.16) 100%),
+        linear-gradient(180deg, rgba(6,13,24,0.08) 0%, rgba(6,13,24,0.65) 100%);
+}
+.cover-inner {
+    position: relative;
+    z-index: 5;
+    padding: 18mm 20mm 16mm;
+    min-height: 297mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+.topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 5.8pt;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.68);
+    font-weight: 700;
+}
+.brand { display: flex; align-items: center; gap: 3mm; }
+.brand-mark {
+    width: 10mm;
+    height: 10mm;
+    border: 1px solid rgba(215,181,109,0.70);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--champ-soft);
+    background: rgba(255,255,255,0.07);
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 9pt;
+    font-weight: 700;
+}
+.cover-box {
+    width: 148mm;
+    padding: 7mm 8mm;
+    border: 1px solid rgba(215,181,109,0.36);
+    background: rgba(8,18,30,0.52);
+}
+.cover-kicker {
+    display: inline-block;
+    padding: 2mm 4mm;
+    border: 1px solid rgba(215,181,109,0.52);
+    background: rgba(255,255,255,0.07);
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 5.8pt;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    font-weight: 800;
+    color: var(--champ-soft);
+    margin-bottom: 6mm;
+}
+.cover h1 {
+    color: #fff;
+    font-size: 40pt;
+    line-height: 0.92;
+}
+.cover-loc {
+    display: block;
+    color: var(--champ-soft);
+    font-style: italic;
+}
+.cover-copy {
+    margin-top: 7mm;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.52;
+    color: rgba(255,255,255,0.84);
+    max-width: 118mm;
+    font-weight: 400;
+}
+.cover-bottom {
+    display: grid;
+    grid-template-columns: 76mm 1fr;
+    gap: 7mm;
+    align-items: end;
+}
+.price-panel {
+    padding: 5.5mm 6mm;
+    border: 1px solid rgba(215,181,109,0.60);
+    background: rgba(255,255,255,0.93);
+}
+.price-lbl {
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 5.8pt;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--bronze);
+    font-weight: 800;
+    margin-bottom: 2mm;
+}
+.price-val {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 22pt;
+    line-height: 1;
+    font-weight: 700;
+    color: var(--ink);
+}
+.tags { display: flex; flex-wrap: wrap; gap: 2mm; justify-content: flex-end; }
+.tag {
+    padding: 2mm 3mm;
+    border: 1px solid rgba(215,181,109,0.46);
+    background: rgba(255,255,255,0.11);
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 5.5pt;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: rgba(255,255,255,0.88);
+    white-space: nowrap;
+}
+
+/* ── FINAL PAGE ── */
+.final {
+    background: #0a1624;
+    color: #fff;
+    position: relative;
+}
+.final-photo { position: absolute; inset: 0; z-index: 1; }
+.final-photo img { width: 100%; height: 100%; object-fit: cover; opacity: 0.30; }
+.final-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: linear-gradient(100deg, rgba(6,13,24,0.90) 0%, rgba(12,24,40,0.62) 55%, rgba(12,24,40,0.20) 100%);
+}
+.final-inner {
+    position: relative;
+    z-index: 5;
+    padding: 18mm 20mm 16mm;
+    min-height: 297mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+.final-title {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 30pt;
+    line-height: 1.05;
+    font-weight: 700;
+    color: #fff;
+    max-width: 148mm;
+    margin-bottom: 6mm;
+}
+.contact-panel {
+    padding: 5.5mm 6mm;
+    border: 1px solid rgba(215,181,109,0.44);
+    background: rgba(255,255,255,0.93);
+}
+.contact-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 5mm;
+    margin-top: 5mm;
+}
+.contact-item { border-left: 1px solid rgba(215,181,109,0.70); padding-left: 3mm; }
+.contact-item span {
+    display: block;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 5.5pt;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(36,52,71,0.52);
+    font-weight: 700;
+    margin-bottom: 1.5mm;
+}
+.contact-item strong {
+    display: block;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 9pt;
+    color: var(--ink);
+    font-weight: 700;
+}
+"""
+
+
+# ─── PAGE BUILDERS ────────────────────────────────────────────────────────────
+
+def _page(content, cls='', orbit=True):
+    orbit_html = '<div class="decor-orbit"></div>' if orbit else ''
+    return (
+        f'<section class="page {cls}">'
+        f'<div class="decor-grid"></div>'
+        f'{orbit_html}'
+        f'{content}'
+        f'</section>'
+    )
+
+def _sh(eyebrow, title, num):
+    return (
+        f'<div class="section-head">'
+        f'<div><div class="gold-line"></div>'
+        f'<div class="eyebrow">{eyebrow}</div>'
+        f'<h2>{title}</h2></div>'
+        f'<div class="section-num">{num:02d}</div>'
+        f'</div>'
+    )
+
+def _foot(l, r):
+    return f'<div class="footer"><span>{l}</span><span>{r}</span></div>'
+
+def _card(lbl, ttl, txt, variant=''):
+    ttl_html = f'<h3>{ttl}</h3>' if ttl else ''
+    return (
+        f'<div class="card {variant}">'
+        f'<h4>{lbl}</h4>'
+        f'{ttl_html}'
+        f'<p class="text">{txt}</p>'
+        f'</div>'
+    )
+
+def _kpi(val, lbl, dark=False):
+    cls = 'kpi dark' if dark else 'kpi'
+    return (
+        f'<div class="{cls}">'
+        f'<div class="num">{val}</div>'
+        f'<div class="lbl">{lbl}</div>'
+        f'</div>'
+    )
+
+
+# ── COVER ──────────────────────────────────────────────────────────────────────
+def _build_cover(data, content, lang):
+    es = lang == 'es'
+    fin = content['financials']
+    precio = _eur(data.get('precio_venta'))
+    ciudad = _s(data.get('ciudad'), 'Espana')
+    barrio = _s(data.get('barrio')) or ciudad
+    tipo_p = data.get('tipo_propiedad', '')
     tipo_dossier = data.get('tipo_dossier', 'inversores')
-    story = []
+    m2 = _s(data.get('metros_construidos'))
+    dorms = _s(data.get('dormitorios'))
+    anyo = datetime.now().year
 
-    # 1. PORTADA (dark background drawn via canvas — use white text on color)
-    story += build_cover(data, content, STYLES, lang)
+    t_es = {'apartamento':'Apartamento','atico':'Atico Premium','casa':'Casa Unifamiliar','villa':'Villa','local':'Local Comercial','oficina':'Oficina','solar':'Solar','edificio':'Edificio','nave':'Nave'}
+    t_en = {'apartamento':'Apartment','atico':'Penthouse','casa':'House','villa':'Villa','local':'Commercial','oficina':'Office','solar':'Plot','edificio':'Building','nave':'Industrial'}
+    tipo_lbl = (t_es if es else t_en).get(tipo_p, tipo_p.capitalize() if tipo_p else ('Inmueble' if es else 'Property'))
 
-    # 2. RESUMEN EJECUTIVO
-    story += build_exec_summary(data, content, STYLES, lang)
+    fotos = data.get('foto_paths', [])
+    photo_src = (_photo_b64(fotos[0]) or IMGS['cover1']) if fotos else IMGS['cover1']
 
-    # 3. ANÁLISIS DE ZONA / CALIDAD DE VIDA
-    story += build_location(data, content, STYLES, lang)
+    if es:
+        kicker = f"{tipo_lbl} · Oportunidad Seleccionada"
+        copy = (f"Inmueble premium en {barrio} — seleccionado por su posicionamiento excepcional, "
+                f"calidad diferencial y potencial de rentabilidad.")
+        if tipo_dossier != 'inversores':
+            copy = f"Tu nuevo hogar en {barrio} — una oportunidad unica de vivir en un entorno excepcional con calidad de vida superior."
+        dossier_lbl = 'Dossier Privado de Inversion' if tipo_dossier == 'inversores' else 'Dossier Premium Residencial'
+        precio_lbl = 'Precio de salida'
+        acceso = 'Acceso Reservado'
+    else:
+        kicker = f"{tipo_lbl} · Selected Opportunity"
+        copy = (f"Premium property in {barrio} — selected for exceptional positioning, "
+                f"differential quality and return potential.")
+        if tipo_dossier != 'inversores':
+            copy = f"Your new home in {barrio} — a unique opportunity to live in an exceptional environment."
+        dossier_lbl = 'Private Investment Dossier' if tipo_dossier == 'inversores' else 'Premium Residential Dossier'
+        precio_lbl = 'Asking price'
+        acceso = 'Restricted Access'
 
-    # 4. ANÁLISIS FINANCIERO (sólo inversores)
-    if tipo_dossier == 'inversores' and content['financials'].get('ingresos_brutos', 0) > 0:
-        story += build_financial(data, content, STYLES, lang)
+    tags_list = [tipo_lbl]
+    if m2: tags_list.append(f"{m2} m2")
+    if dorms and dorms != '0': tags_list.append(f"{dorms} {'dorm.' if es else 'bed.'}")
+    tags_list.append(ciudad)
+    tags_html = ''.join(f'<div class="tag">{t}</div>' for t in tags_list[:5])
+    subtexto = f"{m2} m2 &middot; {tipo_lbl} &middot; {barrio}" if m2 else f"{tipo_lbl} &middot; {barrio}"
+    agente = _s(data.get('nombre_destinatario')) or _s(data.get('nombre_agente'), 'Dossier Premium')
 
-    # 5. ANÁLISIS DE INVERSIÓN (sólo inversores)
+    return (
+        f'<section class="page cover no-frame">'
+        f'<div class="decor-grid"></div>'
+        f'<div class="cover-photo"><img src="{photo_src}" alt=""/></div>'
+        f'<div class="cover-overlay"></div>'
+        f'<div class="cover-inner">'
+        f'  <div class="topbar">'
+        f'    <div class="brand"><div class="brand-mark">RE</div><div>{dossier_lbl}</div></div>'
+        f'    <div>{acceso} &middot; {anyo}</div>'
+        f'  </div>'
+        f'  <div class="cover-box">'
+        f'    <div class="cover-kicker">{kicker}</div>'
+        f'    <h1>{ciudad}<span class="cover-loc">{barrio}</span></h1>'
+        f'    <p class="cover-copy">{copy}</p>'
+        f'  </div>'
+        f'  <div class="cover-bottom">'
+        f'    <div class="price-panel">'
+        f'      <div class="price-lbl">{precio_lbl}</div>'
+        f'      <div class="price-val">{precio}</div>'
+        f'      <p class="text" style="margin-top:2mm; color:#52657a;">{subtexto}</p>'
+        f'    </div>'
+        f'    <div>'
+        f'      <div class="tags">{tags_html}</div>'
+        f'      <p class="micro" style="text-align:right; margin-top:4mm; color:rgba(255,255,255,0.52);">{agente} &middot; {ciudad} &middot; {anyo}</p>'
+        f'    </div>'
+        f'  </div>'
+        f'</div>'
+        f'</section>'
+    )
+
+
+# ── EXECUTIVE SUMMARY ──────────────────────────────────────────────────────────
+def _build_summary(data, content, lang, n):
+    es = lang == 'es'
+    fin = content['financials']
+    ps = content['premium_score']
+    ls = content['loc_scores']
+    tipo_dossier = data.get('tipo_dossier', 'inversores')
+    ciudad = _s(data.get('ciudad'), '')
+
+    paras = [p.strip() for p in content['exec_summary'].split('\n\n') if p.strip()]
+    lead = paras[0] if paras else ''
+
     if tipo_dossier == 'inversores':
-        story += build_investment(data, content, STYLES, lang)
+        kpis = [
+            (_pct(fin.get('yield_bruto', 0)), 'Yield Bruta' if es else 'Gross Yield', True),
+            (_pct(fin.get('roi_5y', 0)), 'ROI 5 Anos' if es else '5Y ROI', False),
+            (f"{ps}/10", 'Score Premium', False),
+            (f"{ls.get('atractivo_inversor', 7)}/10", 'Inversor' if es else 'Investor', True),
+        ]
+    else:
+        kpis = [
+            (f"{ps}/10", 'Score Premium', True),
+            (f"{ls.get('servicios', 7)}/10", 'Servicios' if es else 'Services', False),
+            (f"{ls.get('conectividad', 7)}/10", 'Conectividad' if es else 'Connectivity', False),
+            (f"{ls.get('atractivo_residencial', 7)}/10", 'Zona', True),
+        ]
+    kpis_html = ''.join(_kpi(v, l, d) for v, l, d in kpis)
 
-    # 6. ANÁLISIS COMERCIAL
-    story += build_commercial(data, content, STYLES, lang)
+    comm = content['commercial']
+    prop_val = comm.get('propuesta_valor', '')
+    perf_c = comm.get('perfil_comprador', '')
+    tesis = content['conclusions']['texto']
 
-    # 7. NARRATIVA COMERCIAL
-    story += build_narrative(data, content, STYLES, lang)
+    if es:
+        sh_ey = 'Resumen Ejecutivo'
+        sh_tt = 'Una oportunidad inmobiliaria presentada con criterio institucional.'
+        c1_lbl = 'Propuesta de Valor'; c2_lbl = 'Perfil Inversor' if tipo_dossier == 'inversores' else 'Comprador Ideal'
+        t_lbl = 'Tesis'
+    else:
+        sh_ey = 'Executive Summary'
+        sh_tt = 'A real estate opportunity with institutional-grade analysis.'
+        c1_lbl = 'Value Proposition'; c2_lbl = 'Investor Profile' if tipo_dossier == 'inversores' else 'Ideal Buyer'
+        t_lbl = 'Investment thesis'
 
-    # 8. RIESGOS
-    story += build_risks(data, content, STYLES, lang)
-
-    # 9. GALERÍA
-    foto_paths = data.get('foto_paths', [])
-    story += build_gallery(foto_paths, content, STYLES, lang)
-
-    # 10. CONCLUSIONES
-    story += build_conclusions(data, content, STYLES, lang)
-
-    # 11. CONTACTO
-    story += build_contact(data, content, STYLES, lang)
-
-    # Build with dark page background via canvas
-    doc.build(story, canvasmaker=canvas_maker,
-              onFirstPage=_dark_page, onLaterPages=_dark_page)
-    return buf.getvalue()
+    return _page(
+        f'<div class="inner">'
+        f'{_sh(sh_ey, sh_tt, n)}'
+        f'<p class="lead">{lead}</p>'
+        f'<div class="kpi-row">{kpis_html}</div>'
+        f'<div class="divider"></div>'
+        f'<div class="g2">'
+        f'{_card(c1_lbl, "", prop_val, "stone")}'
+        f'{_card(c2_lbl, "", perf_c, "dark")}'
+        f'</div>'
+        f'<div class="note"><strong>{t_lbl}:</strong> {tesis}</div>'
+        f'{_foot(sh_ey, ciudad)}'
+        f'</div>'
+    )
 
 
-def _dark_page(c, doc):
-    """Draw dark background on every page"""
-    c.saveState()
-    c.setFillColor(DARK)
-    c.rect(0, 0, W, H, fill=1, stroke=0)
-    # Cover gold gradient strip at bottom
-    if doc.page == 1:
-        c.setFillColor(DARK2)
-        c.rect(0, 0, W, H * 0.35, fill=1, stroke=0)
-        c.setFillColor(GOLD)
-        c.rect(0, H * 0.35 + 1, W, 2, fill=1, stroke=0)
-    c.restoreState()
+# ── TECHNICAL SHEET ────────────────────────────────────────────────────────────
+def _build_ficha(data, content, lang, n):
+    es = lang == 'es'
+    fin = content['financials']
+    ciudad = _s(data.get('ciudad'), '')
+    barrio = _s(data.get('barrio')) or ciudad
+
+    t_es = {'apartamento':'Apartamento','atico':'Atico / Penthouse','casa':'Casa Unifamiliar','villa':'Villa','local':'Local Comercial','oficina':'Oficina','solar':'Solar','edificio':'Edificio','nave':'Nave Industrial'}
+    t_en = {'apartamento':'Apartment','atico':'Penthouse','casa':'House','villa':'Villa','local':'Commercial','oficina':'Office','solar':'Plot','edificio':'Building','nave':'Industrial'}
+    tipo_lbl = (t_es if es else t_en).get(data.get('tipo_propiedad', ''), _s(data.get('tipo_propiedad', '')))
+
+    e_es = {'nuevo':'Nuevo / A estrenar','excelente':'Excelente estado','bueno':'Buen estado','reformar':'A reformar','ruina':'Ruina'}
+    e_en = {'nuevo':'Brand new','excelente':'Excellent','bueno':'Good condition','reformar':'Needs renovation','ruina':'Ruin'}
+    estado_lbl = (e_es if es else e_en).get(data.get('estado', ''), _s(data.get('estado', '')))
+
+    feats = data.get('caracteristicas', [])
+    if isinstance(feats, str):
+        import json as _j
+        try: feats = _j.loads(feats)
+        except: feats = []
+    fn_es = {'ascensor':'Ascensor','aire_acondicionado':'Aire Acondicionado','calefaccion':'Calefaccion','amueblado':'Amueblado','seguridad':'Seguridad','piscina':'Piscina','parking':'Parking','terraza':'Terraza','jardin':'Jardin','trastero':'Trastero','domotica':'Domotica','vistas_mar':'Vistas Mar','vistas_ciudad':'Vistas Ciudad','portero':'Portero','gimnasio':'Gimnasio','spa':'Spa'}
+    fn_en = {'ascensor':'Elevator','aire_acondicionado':'A/C','calefaccion':'Heating','amueblado':'Furnished','seguridad':'Security','piscina':'Pool','parking':'Parking','terraza':'Terrace','jardin':'Garden','trastero':'Storage','domotica':'Home auto.','vistas_mar':'Sea views','vistas_ciudad':'City views','portero':'Concierge','gimnasio':'Gym','spa':'Spa'}
+    fn = fn_es if es else fn_en
+    feats_str = ', '.join(fn.get(f, f) for f in feats) if feats else '—'
+
+    a_es = {'vender':'Venta','alquilar':'Alquiler','vender_alquilar':'Venta o Alquiler'}
+    a_en = {'vender':'For Sale','alquilar':'For Rent','vender_alquilar':'Sale or Rent'}
+    accion = (a_es if es else a_en).get(data.get('accion', ''), _s(data.get('accion', '')))
+
+    fotos = data.get('foto_paths', [])
+    hero_src = (_photo_b64(fotos[1]) or _photo_b64(fotos[0])) if len(fotos) > 1 else (_photo_b64(fotos[0]) if fotos else IMGS['interior1'])
+    if not hero_src: hero_src = IMGS['interior1']
+
+    rows = []
+    def row(k, v):
+        if v and v not in ('N/D', '—'):
+            rows.append(f'<tr><td>{k}</td><td>{v}</td></tr>')
+
+    if es:
+        sh_ey = 'Ficha Tecnica'; sh_tt = 'Datos esenciales del inmueble.'
+        row('Direccion', _s(data.get('direccion')))
+        row('Ciudad / Barrio', f"{ciudad} / {barrio}" if barrio != ciudad else ciudad)
+        row('Codigo Postal', _s(data.get('cp')))
+        row('Tipo de activo', tipo_lbl)
+        row('Precio', _eur(data.get('precio_venta')))
+        row('Sup. construida', f"{_s(data.get('metros_construidos'))} m2")
+        if data.get('metros_utiles'): row('Sup. util', f"{_s(data.get('metros_utiles'))} m2")
+        if data.get('dormitorios'): row('Dormitorios / Banos', f"{_s(data.get('dormitorios'))} / {_s(data.get('banos'))}")
+        row('Ano construccion', _s(data.get('anyo_construccion')))
+        row('Estado', estado_lbl)
+        row('Cert. Energetico', _s(data.get('certificado_energetico')))
+        row('Modalidad', accion)
+        row('Extras', feats_str)
+    else:
+        sh_ey = 'Technical Sheet'; sh_tt = 'Essential property data.'
+        row('Address', _s(data.get('direccion')))
+        row('City / Area', f"{ciudad} / {barrio}" if barrio != ciudad else ciudad)
+        row('Postcode', _s(data.get('cp')))
+        row('Asset type', tipo_lbl)
+        row('Price', _eur(data.get('precio_venta')))
+        row('Built area', f"{_s(data.get('metros_construidos'))} m2")
+        if data.get('metros_utiles'): row('Usable area', f"{_s(data.get('metros_utiles'))} m2")
+        if data.get('dormitorios'): row('Beds / Baths', f"{_s(data.get('dormitorios'))} / {_s(data.get('banos'))}")
+        row('Year built', _s(data.get('anyo_construccion')))
+        row('Condition', estado_lbl)
+        row('Energy cert.', _s(data.get('certificado_energetico')))
+        row('Listing type', accion)
+        row('Features', feats_str)
+
+    pm2 = fin.get('precio_m2', 0)
+    pm2z = float(data.get('precio_m2_zona') or 0)
+    pm2_str = f"{pm2:,.0f} EUR/m2".replace(',', '.') if pm2 else '—'
+    pm2z_str = f"{pm2z:,.0f} EUR/m2".replace(',', '.') if pm2z else '—'
+    ps = content['premium_score']
+
+    return _page(
+        f'<div class="inner">'
+        f'{_sh(sh_ey, sh_tt, n)}'
+        f'<div class="img-box" style="margin-bottom:4.5mm;">'
+        f'<img src="{hero_src}" style="height:55mm; width:100%; object-fit:cover;" alt=""/>'
+        f'<div class="img-cap">{_s(data.get("direccion"), barrio + ", " + ciudad)}</div>'
+        f'</div>'
+        f'<table class="dtable"><tbody>{"".join(rows)}</tbody></table>'
+        f'<div class="divider"></div>'
+        f'<div class="g3">'
+        f'{_card("Precio/m2" if es else "Price/m2", pm2_str, "Precio por metro cuadrado construido" if es else "Price per built sq metre", "dark")}'
+        f'{_card("Zona / Precio" if es else "Area / Price", pm2z_str, "Media de la zona de referencia" if es else "Area reference average", "sky")}'
+        f'{_card("Score Premium", f"{ps}/10", "Calidad y posicionamiento del activo" if es else "Asset quality and positioning", "stone")}'
+        f'</div>'
+        f'{_foot(sh_ey, ciudad)}'
+        f'</div>'
+    )
+
+
+# ── COMMERCIAL DESCRIPTION ─────────────────────────────────────────────────────
+def _build_commercial(data, content, lang, n):
+    es = lang == 'es'
+    fotos = data.get('foto_paths', [])
+    ciudad = _s(data.get('ciudad'), '')
+    paras = [p.strip() for p in content['narrative'].split('\n\n') if p.strip()]
+    lead = paras[0] if paras else ''
+    body = ''.join(f'<p class="text" style="margin-bottom:3mm;">{p}</p>' for p in paras[1:3])
+
+    fallbacks = [IMGS['interior1'], IMGS['interior2'], IMGS['terrace']]
+
+    def img_tag(idx, height, cap=''):
+        src = (_photo_b64(fotos[idx]) if idx < len(fotos) else '') or fallbacks[idx % len(fallbacks)]
+        cap_html = f'<div class="img-cap">{cap}</div>' if cap else ''
+        return f'<div class="img-box"><img src="{src}" style="height:{height}; width:100%; object-fit:cover;" alt=""/>{cap_html}</div>'
+
+    if es:
+        sh_ey = 'Descripcion Comercial'; sh_tt = 'El inmueble presentado en toda su dimension.'
+        cap1 = 'Vista principal'; cap2 = 'Detalle'; cap3 = 'Espacio'
+    else:
+        sh_ey = 'Commercial Description'; sh_tt = 'The property in its full dimension.'
+        cap1 = 'Main view'; cap2 = 'Detail'; cap3 = 'Space'
+
+    return _page(
+        f'<div class="inner">'
+        f'{_sh(sh_ey, sh_tt, n)}'
+        f'<p class="lead">{lead}</p>'
+        f'{body}'
+        f'<div class="divider"></div>'
+        f'<div class="g2" style="margin-top:4mm;">'
+        f'<div>{img_tag(0, "58mm", cap1)}</div>'
+        f'<div style="display:grid; gap:4mm;">'
+        f'{img_tag(1, "27mm", cap2)}'
+        f'{img_tag(2, "27mm", cap3)}'
+        f'</div>'
+        f'</div>'
+        f'{_foot(sh_ey, ciudad)}'
+        f'</div>'
+    )
+
+
+# ── LOCATION ANALYSIS — con radar SVG ─────────────────────────────────────────
+def _build_location(data, content, lang, n):
+    es = lang == 'es'
+    ciudad = _s(data.get('ciudad'), '')
+    barrio = _s(data.get('barrio')) or ciudad
+    ls = content['loc_scores']
+    paras = [p.strip() for p in content['zona_text'].split('\n\n') if p.strip()]
+    lead = paras[0] if paras else ''
+    body = ''.join(f'<p class="text" style="margin-bottom:2.5mm;">{p}</p>' for p in paras[1:2])
+
+    # Radar chart — estilo del PDF anterior adaptado a SVG
+    if es:
+        radar_labels = ['Conectividad', 'Transporte', 'Servicios', 'Comercios', 'Calidad Zona', 'Seguridad']
+    else:
+        radar_labels = ['Connectivity', 'Transport', 'Services', 'Commerce', 'Zone Quality', 'Safety']
+
+    radar_values = [
+        float(ls.get('conectividad', 7.5)),
+        float(ls.get('transporte', 7.5)),
+        float(ls.get('servicios', 7.5)),
+        float(ls.get('comercios', 7.0)),
+        float(ls.get('atractivo_residencial', 7.0)),
+        float(ls.get('seguridad', 8.0)),
+    ]
+    radar_svg = _svg_radar(radar_labels, radar_values, size=162)
+
+    # Barras horizontales — estilo del PDF anterior
+    bar_items = list(zip(radar_labels, radar_values))
+    bars_html = ''.join(_svg_bar(lbl, val, 10, 158) for lbl, val in bar_items)
+
+    # Zone images (3)
+    zone_imgs = _zone_imgs(data, lang)
+    zone_html = ''.join(
+        f'<div class="vitem"><img src="{u}" alt="{l}"/><div class="vcap">{l}</div></div>'
+        for u, l in zone_imgs[:3]
+    )
+
+    if es:
+        sh_ey = 'Analisis de Ubicacion'
+        sh_tt = f'{ciudad} — multiplicador de valor y calidad de vida.'
+        radar_lbl = 'Indice de Ubicacion'
+        bars_lbl = 'Puntuaciones por factor'
+    else:
+        sh_ey = 'Location Analysis'
+        sh_tt = f'{ciudad} — value and quality-of-life multiplier.'
+        radar_lbl = 'Location Index'
+        bars_lbl = 'Factor scores'
+
+    return _page(
+        f'<div class="inner">'
+        f'{_sh(sh_ey, sh_tt, n)}'
+        f'<p class="lead">{lead}</p>'
+        f'{body}'
+        f'<div class="divider"></div>'
+        f'<div class="g2" style="align-items:start;">'
+        f'  <div>'
+        f'    <h4>{radar_lbl}</h4>'
+        f'    <div style="margin-top:3mm; display:flex; justify-content:center;">{radar_svg}</div>'
+        f'  </div>'
+        f'  <div>'
+        f'    <h4>{bars_lbl}</h4>'
+        f'    <div class="bars-block" style="margin-top:4mm;">{bars_html}</div>'
+        f'  </div>'
+        f'</div>'
+        f'<div class="divider"></div>'
+        f'<div class="vgallery">{zone_html}'
+        f'{"".join(f\'<div class="vitem"><img src="{u}" alt="{l}"/><div class="vcap">{l}</div></div>\' for u, l in zone_imgs[3:6])}'
+        f'</div>'
+        f'{_foot(sh_ey, ciudad)}'
+        f'</div>'
+    )
+
+
+# ── SERVICES ───────────────────────────────────────────────────────────────────
+def _build_services(data, content, lang, n):
+    es = lang == 'es'
+    ciudad = _s(data.get('ciudad'), '')
+    servicios_texto = _s(data.get('servicios_cercanos', ''))
+    tendencia = _s(data.get('tendencia_mercado', ''))
+
+    if es:
+        sh_ey = 'Servicios e Infraestructura'; sh_tt = 'Todo lo que potencia el valor y el bienestar.'
+        intro = f"El entorno inmediato ofrece acceso directo a una red de servicios de primer nivel en {ciudad}."
+        if servicios_texto: intro += f" {servicios_texto}"
+        conclusion = tendencia or f"El acceso integral a estos servicios posiciona el inmueble en el cuartil superior del mercado en {ciudad}."
+    else:
+        sh_ey = 'Services & Infrastructure'; sh_tt = 'Everything that enhances value and wellbeing.'
+        intro = f"The immediate surroundings offer direct access to a first-class urban services network in {ciudad}."
+        if servicios_texto: intro += f" {servicios_texto}"
+        conclusion = tendencia or f"This comprehensive service access positions the property in the top quartile of the {ciudad} market."
+
+    svc_imgs = _service_imgs(lang)
+    svcs_html = ''.join(
+        f'<div class="vitem"><img src="{u}" alt="{l}"/><div class="vcap">{l}</div></div>'
+        for u, l in svc_imgs
+    )
+
+    return _page(
+        f'<div class="inner">'
+        f'{_sh(sh_ey, sh_tt, n)}'
+        f'<p class="lead">{intro}</p>'
+        f'<div class="vgallery">{svcs_html}</div>'
+        f'<div class="note">{conclusion}</div>'
+        f'{_foot(sh_ey, ciudad)}'
+        f'</div>'
+    )
+
+
+# ── INVESTMENT ANALYSIS — con donuts SVG ──────────────────────────────────────
+def _build_investment(data, content, lang, n):
+    es = lang == 'es'
+    fin = content['financials']
+    ciudad = _s(data.get('ciudad'), '')
+    paras = [p.strip() for p in content['financial_text'].split('\n\n') if p.strip()]
+    lead = paras[0] if paras else ''
+
+    yb  = fin.get('yield_bruto', 0)
+    yn  = fin.get('yield_neto', 0)
+    roi = fin.get('roi_5y', 0)
+    rev = float(fin.get('rev_rate', 5))
+    ing   = fin.get('ingresos_brutos', 0)
+    ing_n = fin.get('ingresos_netos', 0)
+    precio    = fin.get('precio', 0)
+    reforma   = fin.get('reforma', 0)
+    inv_total = fin.get('inversion_total', precio)
+    pb = fin.get('payback', 0)
+    gastos_total = (fin.get('gas_com_anual', 0) + fin.get('ibi', 0) +
+                    fin.get('gestion', 0) + fin.get('otros', 0))
+
+    # Donut SVGs
+    yb_float = float(yb) if yb else 0
+    yn_float = float(yn) if yn else 0
+    roi_float = float(roi) if roi else 0
+    donut1 = _svg_donut(min(yb_float * 10, 100), f"{yb_float:.1f}%", 76)
+    donut2 = _svg_donut(min(yn_float * 10, 100), f"{yn_float:.1f}%", 76, '#9b7638')
+    donut3 = _svg_donut(min(roi_float * 3, 100), f"{roi_float:.1f}%", 76, '#2c3e52')
+
+    if es:
+        sh_ey = 'Escenario de Inversion'; sh_tt = 'Potencial financiero y logica de retorno.'
+        rows = [
+            ('Precio de adquisicion', _eur(precio)),
+            ('Reforma estimada', _eur(reforma) if reforma else 'No necesaria'),
+            ('Inversion total', _eur(inv_total)),
+            ('Ingresos brutos anuales', _eur(ing) if ing else 'Pendiente'),
+            ('Gastos operativos', _eur(gastos_total) if gastos_total else '—'),
+            ('Ingresos netos anuales', _eur(ing_n) if ing_n else '—'),
+            ('Payback', f"{pb:.1f} anos" if pb else '—'),
+        ]
+        d1l = 'Yield Bruta'; d2l = 'Yield Neta'; d3l = 'ROI 5 Anos'
+        nota = f"Escenario calculado con {_s(data.get('ocupacion','90'))}% ocupacion y revalorizacion estimada del {_pct(rev)}/ano. Datos orientativos."
+    else:
+        sh_ey = 'Investment Scenario'; sh_tt = 'Financial potential and return rationale.'
+        rows = [
+            ('Acquisition price', _eur(precio)),
+            ('Estimated renovation', _eur(reforma) if reforma else 'Not needed'),
+            ('Total investment', _eur(inv_total)),
+            ('Annual gross income', _eur(ing) if ing else 'TBD'),
+            ('Operating costs', _eur(gastos_total) if gastos_total else '—'),
+            ('Annual net income', _eur(ing_n) if ing_n else '—'),
+            ('Payback', f"{pb:.1f} years" if pb else '—'),
+        ]
+        d1l = 'Gross Yield'; d2l = 'Net Yield'; d3l = '5Y ROI'
+        nota = f"Scenario at {_s(data.get('ocupacion','90'))}% occupancy and estimated {_pct(rev)}/yr appreciation. Indicative data."
+
+    rows_html = ''.join(f'<tr><td>{k}</td><td>{v}</td></tr>' for k, v in rows if v not in ('—',''))
+
+    donuts_html = (
+        f'<div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:3mm; margin-top:5mm;">'
+        f'  <div style="text-align:center; padding:4mm; background:rgba(255,255,255,0.88); border:1px solid rgba(36,52,71,0.11);">'
+        f'    {donut1}<div class="micro" style="margin-top:2mm;">{d1l}</div></div>'
+        f'  <div style="text-align:center; padding:4mm; background:rgba(255,255,255,0.88); border:1px solid rgba(36,52,71,0.11);">'
+        f'    {donut2}<div class="micro" style="margin-top:2mm;">{d2l}</div></div>'
+        f'  <div style="text-align:center; padding:4mm; background:rgba(255,255,255,0.88); border:1px solid rgba(36,52,71,0.11);">'
+        f'    {donut3}<div class="micro" style="margin-top:2mm;">{d3l}</div></div>'
+        f'</div>'
+    )
+
+    return _page(
+        f'<div class="inner">'
+        f'{_sh(sh_ey, sh_tt, n)}'
+        f'<p class="lead">{lead}</p>'
+        f'<div class="divider"></div>'
+        f'<table class="dtable" style="margin-bottom:0;"><tbody>{rows_html}</tbody></table>'
+        f'{donuts_html}'
+        f'<div class="note">{nota}</div>'
+        f'{_foot(sh_ey, "Estimaciones orientativas" if es else "Indicative estimates")}'
+        f'</div>'
+    )
+
+
+# ── COMPETITIVE ADVANTAGES ─────────────────────────────────────────────────────
+def _build_advantages(data, content, lang, n):
+    es = lang == 'es'
+    ciudad = _s(data.get('ciudad'), '')
+    tipo_dossier = data.get('tipo_dossier', 'inversores')
+    args = list(content['commercial'].get('argumentos', []))
+
+    if es:
+        sh_ey = 'Ventajas Competitivas'; sh_tt = 'Razones para priorizar este activo.'
+        titles = (['Ubicacion Estrategica','Posicionamiento Premium','Demanda Sostenida','Potencial de Revalorizacion','Rentabilidad Diferencial','Liquidez del Activo']
+                  if tipo_dossier == 'inversores' else
+                  ['Ubicacion Privilegiada','Calidad de Construccion','Entorno Residencial','Servicios de Primer Nivel','Espacios y Distribucion','Inversion Segura'])
+    else:
+        sh_ey = 'Competitive Advantages'; sh_tt = 'Reasons to prioritise this asset.'
+        titles = (['Strategic Location','Premium Positioning','Sustained Demand','Appreciation Potential','Differential Return','Asset Liquidity']
+                  if tipo_dossier == 'inversores' else
+                  ['Prime Location','Construction Quality','Residential Environment','First-Class Services','Layout & Space','Safe Investment'])
+
+    while len(args) < 6:
+        args.append(titles[len(args)] if len(args) < len(titles) else '')
+
+    advs_html = ''.join(
+        f'<div class="adv">'
+        f'<div class="adv-n">{i+1:02d}</div>'
+        f'<div><h3>{titles[i] if i < len(titles) else ""}</h3>'
+        f'<p class="text">{txt}</p></div>'
+        f'</div>'
+        for i, txt in enumerate(args[:6])
+    )
+    concl = content['conclusions'].get('texto', '')
+
+    return _page(
+        f'<div class="inner">'
+        f'{_sh(sh_ey, sh_tt, n)}'
+        f'<div class="g2">{advs_html}</div>'
+        f'<div class="note">{concl}</div>'
+        f'{_foot(sh_ey, ciudad)}'
+        f'</div>'
+    )
+
+
+# ── VALUE CREATION PLAN ────────────────────────────────────────────────────────
+def _build_value_plan(data, content, lang, n):
+    es = lang == 'es'
+    ciudad = _s(data.get('ciudad'), '')
+    info_inv = _s(data.get('info_adicional_inversores', ''))
+
+    if es:
+        sh_ey = 'Plan de Creacion de Valor'; sh_tt = 'Como convertir este activo en rentabilidad sostenida.'
+        fases = [
+            ('Fase 1','Adquisicion','Due diligence, negociacion y cierre en condiciones optimas.'),
+            ('Fase 2','Optimizacion','Reforma estrategica o puesta a punto. Posicionamiento de mercado.'),
+            ('Fase 3','Monetizacion','Comercializacion con pricing competitivo. Seleccion de inquilino/comprador.'),
+            ('Fase 4','Consolidacion','Gestion activa. Revision anual y analisis de estrategia de salida.'),
+        ]
+        extras = [
+            ('Fiscal', 'Amortizacion, deduccion de gastos y estructura juridica optima para el perfil inversor.', 'stone'),
+            ('Gestion', 'Delegacion a empresa especializada. Comision tipica: 8-12% sobre renta bruta.', 'sky'),
+            ('Salida', 'Venta a 5 anos en mercado abierto o a inquilino con tanteo. Plusvalia estimada por revalorizacion.', 'dark'),
+        ]
+    else:
+        sh_ey = 'Value Creation Plan'; sh_tt = 'How to turn this asset into sustained returns.'
+        fases = [
+            ('Phase 1','Acquisition','Full due diligence, negotiation and closing under optimal conditions.'),
+            ('Phase 2','Optimisation','Strategic renovation or asset preparation. Market positioning.'),
+            ('Phase 3','Monetisation','Competitive pricing. Rigorous tenant or buyer selection.'),
+            ('Phase 4','Consolidation','Active management. Annual review and exit strategy analysis.'),
+        ]
+        extras = [
+            ('Tax', 'Depreciation, expense deductions and optimal legal structure for the investor profile.', 'stone'),
+            ('Management', 'Delegation to specialist firm. Typical fee: 8-12% on gross rent.', 'sky'),
+            ('Exit', 'Sale at 5 years on open market or to tenant with pre-emption right.', 'dark'),
+        ]
+
+    timeline_html = ''.join(
+        f'<div class="step"><div class="step-n">{lbl}</div><h3>{ttl}</h3><p class="text">{txt}</p></div>'
+        for lbl, ttl, txt in fases
+    )
+    extras_html = ''.join(_card(lbl, '', txt, var) for lbl, txt, var in extras)
+    info_block = f'<div class="note">{info_inv}</div>' if info_inv else ''
+
+    return _page(
+        f'<div class="inner">'
+        f'{_sh(sh_ey, sh_tt, n)}'
+        f'<div class="timeline">{timeline_html}</div>'
+        f'<div class="divider"></div>'
+        f'<div class="g3">{extras_html}</div>'
+        f'{info_block}'
+        f'{_foot(sh_ey, ciudad)}'
+        f'</div>'
+    )
+
+
+# ── STRATEGIC ANALYSIS ─────────────────────────────────────────────────────────
+def _build_strategic(data, content, lang, n):
+    es = lang == 'es'
+    ciudad = _s(data.get('ciudad'), '')
+    riesgos = content['riesgos']
+    comm = content['commercial']
+
+    if es:
+        sh_ey = 'Analisis Estrategico y Riesgos'; sh_tt = 'Lectura avanzada del activo y estrategia de salida.'
+    else:
+        sh_ey = 'Strategic Analysis & Risks'; sh_tt = 'Advanced asset reading and exit strategy.'
+
+    variants = ['stone', 'sky', 'gold']
+    risks_html = ''.join(
+        _card(item[0], item[1].upper(), item[2], variants[i % len(variants)])
+        for i, item in enumerate(riesgos[:3])
+    )
+
+    opps = comm.get('oportunidades', [])
+    opps_html = ''.join(
+        f'<div class="adv"><div class="adv-n">+</div><div><p class="text">{o}</p></div></div>'
+        for o in opps[:3]
+    )
+    recs = content['conclusions'].get('recomendaciones', [])
+    recs_li = ''.join(
+        f'<li style="margin-bottom:2mm; font-family:Inter,Arial,sans-serif; font-size:7.5pt; line-height:1.48; color:rgba(255,255,255,0.86);">{r}</li>'
+        for r in recs[:4]
+    )
+    opp_lbl = 'Oportunidades' if es else 'Opportunities'
+    rec_lbl = 'Recomendaciones' if es else 'Recommendations'
+
+    return _page(
+        f'<div class="inner">'
+        f'{_sh(sh_ey, sh_tt, n)}'
+        f'<div class="g3">{risks_html}</div>'
+        f'<div class="divider"></div>'
+        f'<div class="g2">'
+        f'<div><h4>{opp_lbl}</h4><div style="margin-top:3mm;">{opps_html}</div></div>'
+        f'<div class="card dark"><h4>{rec_lbl}</h4><ul style="margin-top:3mm; padding-left:4mm;">{recs_li}</ul></div>'
+        f'</div>'
+        f'{_foot(sh_ey, ciudad)}'
+        f'</div>'
+    )
+
+
+# ── LIFESTYLE (Particulares) ───────────────────────────────────────────────────
+def _build_lifestyle(data, content, lang, n):
+    es = lang == 'es'
+    ciudad = _s(data.get('ciudad'), '')
+    barrio = _s(data.get('barrio')) or ciudad
+    ls = content['loc_scores']
+    paras = [p.strip() for p in content['zona_text'].split('\n\n') if p.strip()]
+    lead = paras[0] if paras else ''
+    body = ''.join(f'<p class="text" style="margin-bottom:2.5mm;">{p}</p>' for p in paras[1:3])
+
+    # Score bars (like old PDF) for lifestyle version
+    if es:
+        sh_ey = 'Calidad de Vida y Entorno'; sh_tt = f'Vivir en {barrio} es mucho mas que una direccion.'
+        bar_items = [
+            ('Servicios', ls.get('servicios', 7.5)),
+            ('Colegios', ls.get('educacion', 7.0)),
+            ('Conectividad', ls.get('conectividad', 7.5)),
+            ('Verde', ls.get('zonas_verdes', 7.0)),
+            ('Seguridad', ls.get('seguridad', 8.0)),
+        ]
+    else:
+        sh_ey = 'Quality of Life & Environment'; sh_tt = f'Living in {barrio} is much more than an address.'
+        bar_items = [
+            ('Services', ls.get('servicios', 7.5)),
+            ('Schools', ls.get('educacion', 7.0)),
+            ('Connectivity', ls.get('conectividad', 7.5)),
+            ('Green', ls.get('zonas_verdes', 7.0)),
+            ('Safety', ls.get('seguridad', 8.0)),
+        ]
+
+    bars_html = ''.join(_svg_bar(lbl, val, 10, 158) for lbl, val in bar_items)
+    zone_imgs = _zone_imgs(data, lang)
+    imgs_html = ''.join(
+        f'<div class="vitem"><img src="{u}" alt="{l}"/><div class="vcap">{l}</div></div>'
+        for u, l in zone_imgs[:6]
+    )
+
+    return _page(
+        f'<div class="inner">'
+        f'{_sh(sh_ey, sh_tt, n)}'
+        f'<div class="g2" style="margin-bottom:5mm;">'
+        f'  <div><p class="lead" style="margin-bottom:3mm;">{lead}</p>{body}</div>'
+        f'  <div><h4>{"Puntuaciones de zona" if es else "Zone scores"}</h4><div class="bars-block" style="margin-top:4mm;">{bars_html}</div></div>'
+        f'</div>'
+        f'<div class="vgallery">{imgs_html}</div>'
+        f'{_foot(sh_ey, ciudad)}'
+        f'</div>'
+    )
+
+
+# ── PHOTO GALLERY ──────────────────────────────────────────────────────────────
+def _build_gallery(data, content, lang, n):
+    es = lang == 'es'
+    ciudad = _s(data.get('ciudad'), '')
+    fotos = data.get('foto_paths', [])
+    fallbacks = [IMGS['interior1'], IMGS['interior2'], IMGS['terrace'], IMGS['pool'], IMGS['garden'], IMGS['city']]
+
+    def get_src(idx):
+        if idx < len(fotos):
+            s = _photo_b64(fotos[idx])
+            if s: return s
+        return fallbacks[(idx - len(fotos)) % len(fallbacks)]
+
+    if es:
+        sh_ey = 'Galeria del Inmueble'; sh_tt = 'Presentacion visual del activo.'
+        note_txt = 'Imagenes seleccionadas para ofrecer una vision completa del inmueble y su entorno. Se recomienda solicitar una visita privada para una experiencia completa.'
+    else:
+        sh_ey = 'Property Gallery'; sh_tt = 'Visual presentation of the asset.'
+        note_txt = 'Images selected to offer a complete view of the property and its surroundings. A private visit is recommended for the full experience.'
+
+    extra_html = '<div class="g3" style="margin-top:4mm;">'
+    for i in range(3, 6):
+        extra_html += f'<div class="img-box"><img src="{get_src(i)}" style="height:36mm; width:100%; object-fit:cover;" alt=""/></div>'
+    extra_html += '</div>'
+
+    return _page(
+        f'<div class="inner">'
+        f'{_sh(sh_ey, sh_tt, n)}'
+        f'<div class="photo-strip">'
+        f'<div class="img-box" style="height:98mm;"><img src="{get_src(0)}" style="height:98mm; width:100%; object-fit:cover;" alt=""/></div>'
+        f'<div class="photo-stack">'
+        f'<div class="img-box" style="height:47mm;"><img src="{get_src(1)}" style="height:47mm; width:100%; object-fit:cover;" alt=""/></div>'
+        f'<div class="img-box" style="height:47mm;"><img src="{get_src(2)}" style="height:47mm; width:100%; object-fit:cover;" alt=""/></div>'
+        f'</div></div>'
+        f'{extra_html}'
+        f'<div class="note" style="margin-top:4mm;">{note_txt}</div>'
+        f'{_foot(sh_ey, ciudad)}'
+        f'</div>'
+    )
+
+
+# ── FINAL CTA ──────────────────────────────────────────────────────────────────
+def _build_final(data, content, lang):
+    es = lang == 'es'
+    ciudad = _s(data.get('ciudad'), '')
+    barrio = _s(data.get('barrio')) or ciudad
+    nombre = _s(data.get('nombre_destinatario')) or _s(data.get('nombre_agente'), 'Contacto')
+    email  = _s(data.get('email_destinatario'), _s(data.get('email_agente', '')))
+    tel    = _s(data.get('telefono_destinatario')) or _s(data.get('telefono_agente', ''))
+    web    = _s(data.get('web_agente', ''))
+    tipo_dossier = data.get('tipo_dossier', 'inversores')
+    anyo = datetime.now().year
+    ps = content['premium_score']
+
+    fotos = data.get('foto_paths', [])
+    final_src = (_photo_b64(fotos[-1]) or IMGS['cover2']) if fotos else IMGS['cover2']
+    if not final_src: final_src = IMGS['cover2']
+
+    if es:
+        if tipo_dossier == 'inversores':
+            title = f"Una oportunidad limitada para tomar posicion en {ciudad}."
+            copy = f"Este activo representa una ventana de inversion con fundamentos solidos en {barrio}. Las oportunidades de este calibre son escasas y de alta rotacion."
+            cta = "Solicite visita privada y documentacion tecnica completa."
+        else:
+            title = f"Tu hogar en {barrio} te esta esperando."
+            copy = f"Cada detalle de este inmueble ha sido seleccionado para ofrecerte una calidad de vida superior en el corazon de {ciudad}."
+            cta = "Solicite visita privada para conocer el inmueble en persona."
+        dossier_tag = 'Dossier Premium Inmobiliario'
+        cta_lbl = 'Agente / Contacto'
+        prox = 'Proximo Paso'
+        tel_lbl = 'Telefono'
+        score_lbl = 'Score Premium'
+    else:
+        if tipo_dossier == 'inversores':
+            title = f"A limited opportunity to take position in {ciudad}."
+            copy = f"This asset represents an investment window with solid fundamentals in {barrio}. Opportunities of this calibre are scarce and high-turnover."
+            cta = "Request a private visit and complete technical documentation."
+        else:
+            title = f"Your home in {barrio} is waiting for you."
+            copy = f"Every detail of this property has been carefully selected to offer you superior quality of life in the heart of {ciudad}."
+            cta = "Request a private visit to see the property in person."
+        dossier_tag = 'Premium Real Estate Dossier'
+        cta_lbl = 'Agent / Contact'
+        prox = 'Next Step'
+        tel_lbl = 'Phone'
+        score_lbl = 'Premium Score'
+
+    tags_html = ''.join(f'<div class="tag">{t}</div>' for t in [dossier_tag, ciudad, str(anyo)])
+    third = (f'<div class="contact-item"><span>Web</span><strong>{web}</strong></div>'
+             if web else
+             f'<div class="contact-item"><span>{score_lbl}</span><strong>{ps}/10</strong></div>')
+
+    return (
+        f'<section class="page final no-frame">'
+        f'<div class="decor-grid"></div>'
+        f'<div class="final-photo"><img src="{final_src}" alt=""/></div>'
+        f'<div class="final-overlay"></div>'
+        f'<div class="final-inner">'
+        f'  <div class="topbar">'
+        f'    <div class="brand"><div class="brand-mark">RE</div><div>{dossier_tag}</div></div>'
+        f'    <div>{ciudad} &middot; {anyo}</div>'
+        f'  </div>'
+        f'  <div>'
+        f'    <div class="cover-kicker">{prox}</div>'
+        f'    <div class="final-title">{title}</div>'
+        f'    <p class="cover-copy" style="max-width:132mm;">{copy}</p>'
+        f'    <div class="note" style="max-width:132mm; margin-top:6mm; background:rgba(255,255,255,0.93); color:#223246;">'
+        f'      <strong>{cta}</strong></div>'
+        f'  </div>'
+        f'  <div>'
+        f'    <div class="contact-panel">'
+        f'      <h3 style="font-family:\'Cormorant Garamond\',Georgia,serif; font-size:16pt; color:#223246;">{nombre}</h3>'
+        f'      <p class="text" style="color:#52657a; margin-top:1mm;">{cta_lbl}</p>'
+        f'      <div class="contact-grid">'
+        f'        <div class="contact-item"><span>Email</span><strong>{email}</strong></div>'
+        f'        <div class="contact-item"><span>{tel_lbl}</span><strong>{tel or "—"}</strong></div>'
+        f'        {third}'
+        f'      </div>'
+        f'    </div>'
+        f'    <div class="tags" style="margin-top:5mm; justify-content:flex-start;">{tags_html}</div>'
+        f'  </div>'
+        f'</div>'
+        f'</section>'
+    )
+
+
+# ─── MAIN BUILDER ─────────────────────────────────────────────────────────────
+
+def _build_html(data, content, lang):
+    tipo_dossier = data.get('tipo_dossier', 'inversores')
+    pages = [_build_cover(data, content, lang)]
+    n = 1
+
+    pages.append(_build_summary(data, content, lang, n)); n += 1
+    pages.append(_build_ficha(data, content, lang, n)); n += 1
+    pages.append(_build_commercial(data, content, lang, n)); n += 1
+    pages.append(_build_location(data, content, lang, n)); n += 1
+    pages.append(_build_services(data, content, lang, n)); n += 1
+
+    if tipo_dossier == 'inversores':
+        pages.append(_build_investment(data, content, lang, n)); n += 1
+        pages.append(_build_advantages(data, content, lang, n)); n += 1
+        pages.append(_build_value_plan(data, content, lang, n)); n += 1
+        pages.append(_build_strategic(data, content, lang, n)); n += 1
+    else:
+        pages.append(_build_lifestyle(data, content, lang, n)); n += 1
+        pages.append(_build_advantages(data, content, lang, n)); n += 1
+
+    pages.append(_build_gallery(data, content, lang, n)); n += 1
+    pages.append(_build_final(data, content, lang))
+
+    return (
+        f'<!DOCTYPE html><html lang="{lang}"><head>'
+        f'<meta charset="UTF-8"/>'
+        f'<title>Dossier Premium</title>'
+        f'<style>{_css()}</style>'
+        f'</head><body>{"".join(pages)}</body></html>'
+    )
+
+
+# ─── ENTRY POINT ──────────────────────────────────────────────────────────────
+
+def generate_dossier(data, content, lang='es'):
+    html = _build_html(data, content, lang)
+    from weasyprint import HTML
+    return HTML(string=html, base_url='https://images.unsplash.com').write_pdf()
