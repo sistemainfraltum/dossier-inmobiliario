@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Dossier de Captación Inmobiliaria — Premium</title>
+  <style>
+    :root {
+      --bg:       #07101D;
+      --card:     #0D1A2B;
+      --card2:    #111F30;
+      --gold:     #C9A84C;
+      --gold2:    #E8CC80;
+      --border:   #1A2E44;
+      --border-g: rgba(201,168,76,0.35);
+      --white:    #FFFFFF;
+      --muted:    #6B82A0;
+      --muted2:   #8BA5C5;
+      --text:     #E8EFF8;
+      --success:  #22C55E;
+      --danger:   #EF4444;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    html{scroll-behavior:smooth;}
+    body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;}
+
+    /* ── HERO ── */
+    .hero{
+      position:relative;background:linear-gradient(160deg,#040C18 0%,#0A1828 50%,#0D1F30 100%);
+      padding:48px 20px 0;text-align:center;overflow:hidden;
+    }
+    .hero::before{
+      content:'';position:absolute;inset:0;
+      background:radial-gradient(ellipse 80% 60% at 50% 30%,rgba(201,168,76,0.06) 0%,transparent 70%);
+      pointer-events:none;
+    }
+    .hero-badge{
+      display:inline-flex;align-items:center;gap:6px;
+      border:1px solid var(--border-g);border-radius:20px;
+      padding:5px 14px;font-size:11px;font-weight:700;letter-spacing:2px;
+      color:var(--gold);text-transform:uppercase;margin-bottom:18px;
+      background:rgba(201,168,76,0.06);
+    }
+    .hero h1{font-size:clamp(26px,5vw,40px);font-weight:700;color:var(--white);line-height:1.2;margin-bottom:10px;}
+    .hero h1 span{display:block;color:var(--gold);}
+    .hero p{color:var(--muted2);font-size:15px;max-width:500px;margin:0 auto 32px;}
+
+    /* ── STEPS ── */
+    .steps-bar{
+      display:flex;align-items:center;justify-content:center;gap:0;
+      max-width:560px;margin:0 auto;padding-bottom:0;position:relative;
+    }
+    .step-item{display:flex;flex-direction:column;align-items:center;flex:1;position:relative;z-index:1;}
+    .step-connector{flex:1;height:2px;background:var(--border);margin-top:-18px;z-index:0;}
+    .step-circle{
+      width:36px;height:36px;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      font-size:13px;font-weight:700;margin-bottom:6px;
+      border:2px solid var(--border);background:var(--card);color:var(--muted);
+      transition:all 0.3s;position:relative;z-index:2;
+    }
+    .step-item.active .step-circle{border-color:var(--gold);background:var(--gold);color:#000;}
+    .step-item.done .step-circle{border-color:var(--success);background:var(--success);color:#fff;}
+    .step-label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:0.3px;}
+    .step-item.active .step-label{color:var(--gold);}
+    .step-item.done .step-label{color:var(--success);}
+
+    /* ── MAIN LAYOUT ── */
+    main{max-width:680px;margin:0 auto;padding:32px 16px 80px;}
+
+    /* ── PANEL ── */
+    .panel{display:none;animation:fadeUp .3s ease;}
+    .panel.active{display:block;}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+    .panel-card{
+      background:var(--card);border:1px solid var(--border);
+      border-radius:16px;overflow:hidden;
+    }
+    .panel-head{
+      background:linear-gradient(135deg,#0A1525 0%,#0D1F35 100%);
+      border-bottom:2px solid var(--gold);padding:24px 28px;
+    }
+    .panel-head h2{font-size:18px;font-weight:700;color:var(--white);display:flex;align-items:center;gap:10px;}
+    .panel-head p{font-size:13px;color:var(--muted2);margin-top:5px;}
+    .panel-body{padding:28px;}
+
+    /* ── FORM ELEMENTS ── */
+    .field{display:flex;flex-direction:column;gap:7px;margin-bottom:18px;}
+    .field label{font-size:12px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;}
+    .field label .req{color:var(--gold);}
+    .field input,.field select,.field textarea{
+      background:var(--card2);border:1.5px solid var(--border);border-radius:10px;
+      padding:12px 14px;font-size:14px;color:var(--white);outline:none;
+      font-family:inherit;transition:border-color .2s,box-shadow .2s;
+    }
+    .field input::placeholder,.field textarea::placeholder{color:var(--muted);}
+    .field input:focus,.field select:focus,.field textarea:focus{
+      border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,168,76,.12);
+    }
+    .field select option{background:#0D1A2B;color:var(--white);}
+    .field textarea{resize:vertical;min-height:80px;}
+
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+    .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+    .col-full{grid-column:1/-1;}
+
+    .divider{
+      display:flex;align-items:center;gap:12px;margin:24px 0 20px;
+      font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;
+    }
+    .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border);}
+
+    /* ── TOGGLE GRID ── */
+    .toggle-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;}
+    .toggle-card{
+      background:var(--card2);border:1.5px solid var(--border);border-radius:12px;
+      padding:14px;cursor:pointer;transition:all .2s;
+      display:flex;align-items:flex-start;justify-content:space-between;gap:10px;
+    }
+    .toggle-card:hover{border-color:var(--border-g);}
+    .toggle-card.on{border-color:var(--border-g);background:rgba(201,168,76,.05);}
+    .tc-left{flex:1;}
+    .tc-icon{font-size:18px;margin-bottom:5px;display:block;}
+    .tc-title{font-size:13px;font-weight:600;color:var(--white);line-height:1.3;}
+    .tc-desc{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.4;}
+    .tc-switch{
+      width:42px;height:23px;background:var(--border);border-radius:12px;
+      position:relative;flex-shrink:0;transition:background .2s;margin-top:2px;
+    }
+    .tc-switch::after{
+      content:'';position:absolute;top:2px;left:2px;
+      width:19px;height:19px;background:#fff;border-radius:50%;
+      transition:left .2s;box-shadow:0 1px 4px rgba(0,0,0,.3);
+    }
+    .toggle-card.on .tc-switch{background:var(--gold);}
+    .toggle-card.on .tc-switch::after{left:21px;}
+
+    /* ── ACCIÓN BUTTONS ── */
+    .accion-group{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px;}
+    .accion-btn{
+      background:var(--card2);border:1.5px solid var(--border);border-radius:12px;
+      padding:14px 8px;text-align:center;cursor:pointer;transition:all .2s;
+    }
+    .accion-btn:hover{border-color:var(--border-g);}
+    .accion-btn.selected{border-color:var(--gold);background:rgba(201,168,76,.07);}
+    .accion-btn .ab-icon{font-size:22px;margin-bottom:6px;}
+    .accion-btn .ab-label{font-size:13px;font-weight:600;color:var(--white);}
+
+    /* ── TIPO DOSSIER ── */
+    .tipo-group{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;}
+    .tipo-card{
+      background:var(--card2);border:2px solid var(--border);border-radius:12px;
+      padding:18px;cursor:pointer;transition:all .2s;text-align:center;
+    }
+    .tipo-card:hover{border-color:var(--border-g);}
+    .tipo-card.selected{border-color:var(--gold);background:rgba(201,168,76,.07);}
+    .tipo-card .ti-icon{font-size:28px;margin-bottom:8px;}
+    .tipo-card .ti-title{font-size:14px;font-weight:700;color:var(--white);}
+    .tipo-card .ti-desc{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4;}
+
+    /* ── IDIOMA ── */
+    .idioma-group{display:flex;gap:10px;margin-bottom:18px;}
+    .idioma-btn{
+      flex:1;background:var(--card2);border:1.5px solid var(--border);border-radius:10px;
+      padding:12px;text-align:center;cursor:pointer;transition:all .2s;
+      font-size:13px;font-weight:600;color:var(--muted2);
+    }
+    .idioma-btn:hover{border-color:var(--border-g);color:var(--white);}
+    .idioma-btn.selected{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,.06);}
+
+    /* ── UPLOAD AREA ── */
+    .upload-area{
+      border:2px dashed var(--border);border-radius:14px;padding:40px 20px;
+      text-align:center;cursor:pointer;transition:all .2s;
+      background:var(--card2);margin-bottom:18px;
+    }
+    .upload-area:hover,.upload-area.drag-over{border-color:var(--gold);background:rgba(201,168,76,.04);}
+    .upload-icon{font-size:36px;margin-bottom:12px;opacity:.7;}
+    .upload-title{font-size:15px;font-weight:600;color:var(--white);margin-bottom:5px;}
+    .upload-hint{font-size:12px;color:var(--muted);}
+    #fileInput{display:none;}
+    .photo-preview{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px;}
+    .photo-thumb{
+      width:80px;height:80px;border-radius:8px;object-fit:cover;
+      border:2px solid var(--border-g);position:relative;
+    }
+    .photo-remove{
+      position:absolute;top:-6px;right:-6px;width:20px;height:20px;
+      background:var(--danger);border-radius:50%;border:none;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;
+      font-size:11px;color:white;font-weight:700;
+    }
+    .photo-item{position:relative;display:inline-block;}
+
+    /* ── NAVIGATION ── */
+    .nav-buttons{
+      display:flex;justify-content:space-between;align-items:center;
+      margin-top:28px;padding-top:22px;border-top:1px solid var(--border);
+    }
+    .btn{
+      padding:12px 26px;border-radius:10px;font-size:14px;font-weight:700;
+      cursor:pointer;border:none;font-family:inherit;transition:all .2s;
+      display:inline-flex;align-items:center;gap:8px;
+    }
+    .btn-back{background:transparent;color:var(--muted2);border:1.5px solid var(--border);}
+    .btn-back:hover{border-color:var(--muted2);color:var(--white);}
+    .btn-next{background:var(--gold);color:#000;box-shadow:0 4px 16px rgba(201,168,76,.3);}
+    .btn-next:hover{background:var(--gold2);transform:translateY(-1px);}
+    .btn-generate{
+      background:linear-gradient(135deg,var(--gold) 0%,var(--gold2) 100%);
+      color:#000;padding:14px 32px;font-size:15px;
+      box-shadow:0 4px 20px rgba(201,168,76,.35);
+    }
+    .btn-generate:hover{transform:translateY(-1px);box-shadow:0 6px 28px rgba(201,168,76,.45);}
+    .btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important;}
+
+    /* ── INFO BOX ── */
+    .info-box{
+      background:rgba(201,168,76,.07);border:1px solid rgba(201,168,76,.2);
+      border-radius:10px;padding:12px 16px;font-size:13px;color:var(--muted2);
+      display:flex;gap:10px;align-items:flex-start;margin-bottom:18px;line-height:1.5;
+    }
+    .info-box .ii{font-size:16px;flex-shrink:0;margin-top:1px;}
+
+    /* ── FOOTER NOTE ── */
+    .footer-note{text-align:center;font-size:12px;color:var(--muted);margin-top:18px;}
+
+    /* ── LOADING ── */
+    .loading-overlay{
+      display:none;position:fixed;inset:0;
+      background:rgba(7,16,29,.92);z-index:999;
+      flex-direction:column;align-items:center;justify-content:center;gap:20px;
+    }
+    .loading-overlay.active{display:flex;}
+    .spinner{
+      width:52px;height:52px;
+      border:3px solid rgba(201,168,76,.2);
+      border-top-color:var(--gold);
+      border-radius:50%;animation:spin .8s linear infinite;
+    }
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .loading-title{color:var(--white);font-size:17px;font-weight:600;}
+    .loading-sub{color:var(--muted2);font-size:13px;}
+
+    /* ── SUCCESS ── */
+    .success-panel{text-align:center;padding:60px 32px;}
+    .success-icon{font-size:64px;margin-bottom:20px;}
+    .success-panel h2{font-size:24px;font-weight:700;color:var(--white);margin-bottom:10px;}
+    .success-panel p{color:var(--muted2);font-size:15px;max-width:420px;margin:0 auto 30px;}
+
+    /* ── TOAST ── */
+    .toast{
+      position:fixed;bottom:24px;right:24px;
+      background:#EF4444;color:white;padding:14px 20px;border-radius:10px;
+      font-size:14px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.3);
+      transform:translateY(80px);opacity:0;transition:all .3s;z-index:1000;
+      max-width:360px;line-height:1.4;
+    }
+    .toast.show{transform:translateY(0);opacity:1;}
+
+    /* ── RANGE ── */
+    .range-wrapper{position:relative;}
+    input[type=range]{
+      -webkit-appearance:none;width:100%;height:6px;
+      background:linear-gradient(to right,var(--gold) 0%,var(--border) 0%);
+      border-radius:3px;outline:none;cursor:pointer;
+    }
+    input[type=range]::-webkit-slider-thumb{
+      -webkit-appearance:none;width:18px;height:18px;
+      background:var(--gold);border-radius:50%;border:2px solid #fff;
+      box-shadow:0 2px 6px rgba(0,0,0,.3);cursor:pointer;
+    }
+    .range-val{
+      position:absolute;right:0;top:-24px;
+      font-size:12px;font-weight:700;color:var(--gold);
+    }
+
+    @media(max-width:560px){
+      .grid-2,.grid-3{grid-template-columns:1fr;}
+      .tipo-group{grid-template-columns:1fr;}
+      .accion-group{grid-template-columns:1fr 1fr;}
+      .toggle-grid{grid-template-columns:1fr;}
+      main{padding:24px 12px 60px;}
+    }
+  </style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-badge">⬡ Captación Inmobiliaria Premium</div>
+  <h1>Dossier de Captación<span>Inmobiliaria</span></h1>
+  <p>Complete el formulario para generar su dossier profesional de captación de clientes.</p>
+
+  <!-- STEPS -->
+  <div class="steps-bar">
+    <div class="step-item active" id="si-1">
+      <div class="step-circle" id="sc-1">1</div>
+      <span class="step-label">Datos</span>
+    </div>
+    <div class="step-connector"></div>
+    <div class="step-item" id="si-2">
+      <div class="step-circle" id="sc-2">2</div>
+      <span class="step-label">Inmueble</span>
+    </div>
+    <div class="step-connector"></div>
+    <div class="step-item" id="si-3">
+      <div class="step-circle" id="sc-3">3</div>
+      <span class="step-label">Detalles</span>
+    </div>
+    <div class="step-connector"></div>
+    <div class="step-item" id="si-4">
+      <div class="step-circle" id="sc-4">4</div>
+      <span class="step-label">Informe</span>
+    </div>
+    <div class="step-connector"></div>
+    <div class="step-item" id="si-5">
+      <div class="step-circle" id="sc-5">5</div>
+      <span class="step-label">Fotos</span>
+    </div>
+  </div>
+</div>
+
+<main>
+
+<!-- ── PANEL 1: DATOS ── -->
+<div class="panel active" id="p1">
+  <div class="panel-card">
+    <div class="panel-head">
+      <h2>👤 Tus Datos</h2>
+      <p>Introduce tus datos como propietario o agente. El dossier generado se enviará a tu email.</p>
+    </div>
+    <div class="panel-body">
+      <div class="grid-2">
+        <div class="field col-full">
+          <label>Tu nombre completo / razón social <span class="req">*</span></label>
+          <input type="text" id="nombre_destinatario" placeholder="Ej: Juan García López / Inmobiliaria García"/>
+        </div>
+        <div class="field col-full">
+          <label>Tu email (aquí recibirás el dossier) <span class="req">*</span></label>
+          <input type="email" id="email_destinatario" placeholder="tu@email.com"/>
+        </div>
+        <div class="field">
+          <label>Teléfono de contacto</label>
+          <input type="tel" id="telefono_destinatario" placeholder="+34 600 000 000"/>
+        </div>
+        <div class="field">
+          <label>Empresa / Sociedad</label>
+          <input type="text" id="empresa_destinatario" placeholder="Ej: Inmobiliaria García S.L."/>
+        </div>
+      </div>
+      <div class="nav-buttons">
+        <span></span>
+        <button class="btn btn-next" onclick="goTo(2)">Siguiente →</button>
+      </div>
+    </div>
+  </div>
+  <p class="footer-note">Los datos proporcionados se utilizarán exclusivamente para generar su informe.</p>
+</div>
+
+<!-- ── PANEL 2: INMUEBLE ── -->
+<div class="panel" id="p2">
+  <div class="panel-card">
+    <div class="panel-head">
+      <h2>🏠 Datos del Inmueble</h2>
+      <p>Información detallada sobre la propiedad que se va a comercializar.</p>
+    </div>
+    <div class="panel-body">
+      <div class="grid-2">
+        <div class="field col-full">
+          <label>Tipo de inmueble <span class="req">*</span></label>
+          <select id="tipo_propiedad">
+            <option value="">Seleccionar tipo...</option>
+            <option value="apartamento">Apartamento / Piso</option>
+            <option value="atico">Ático / Penthouse</option>
+            <option value="casa">Casa / Chalet</option>
+            <option value="villa">Villa / Lujo</option>
+            <option value="local">Local Comercial</option>
+            <option value="oficina">Oficina</option>
+            <option value="solar">Solar / Parcela</option>
+            <option value="edificio">Edificio completo</option>
+            <option value="nave">Nave Industrial</option>
+          </select>
+        </div>
+        <div class="field col-full">
+          <label>Dirección completa <span class="req">*</span></label>
+          <input type="text" id="direccion" placeholder="Calle, número, piso, puerta"/>
+        </div>
+        <div class="field">
+          <label>Ciudad <span class="req">*</span></label>
+          <input type="text" id="ciudad" placeholder="Ej: Madrid"/>
+        </div>
+        <div class="field">
+          <label>Provincia</label>
+          <input type="text" id="provincia" placeholder="Ej: Madrid"/>
+        </div>
+        <div class="field">
+          <label>Código Postal</label>
+          <input type="text" id="cp" placeholder="Ej: 28001"/>
+        </div>
+        <div class="field">
+          <label>Barrio / Zona</label>
+          <input type="text" id="barrio" placeholder="Ej: Salamanca, Eixample..."/>
+        </div>
+        <div class="field col-full">
+          <label>Precio de venta <span class="req">*</span></label>
+          <input type="number" id="precio_venta" placeholder="350000" min="0"/>
+        </div>
+        <div class="field">
+          <label>Superficie construida (m²) <span class="req">*</span></label>
+          <input type="number" id="metros_construidos" placeholder="120" min="0"/>
+        </div>
+        <div class="field">
+          <label>Superficie útil (m²)</label>
+          <input type="number" id="metros_utiles" placeholder="105" min="0"/>
+        </div>
+        <div class="field">
+          <label>Dormitorios</label>
+          <select id="dormitorios">
+            <option value="">—</option>
+            <option value="0">Estudio</option>
+            <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+            <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+            <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+            <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+            <option value="13">13</option><option value="14">14</option><option value="15">15</option>
+            <option value="16">16</option><option value="17">17</option><option value="18">18</option>
+            <option value="19">19</option><option value="20">20</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Baños</label>
+          <select id="banos">
+            <option value="">—</option>
+            <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+            <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+            <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+            <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+            <option value="13">13</option><option value="14">14</option><option value="15">15</option>
+            <option value="16">16</option><option value="17">17</option><option value="18">18</option>
+            <option value="19">19</option><option value="20">20</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Año de construcción</label>
+          <input type="number" id="anyo_construccion" placeholder="2005" min="1900" max="2026"/>
+        </div>
+        <div class="field">
+          <label>Estado del inmueble</label>
+          <select id="estado">
+            <option value="">Seleccionar...</option>
+            <option value="nuevo">Nuevo / A estrenar</option>
+            <option value="excelente">Excelente estado</option>
+            <option value="bueno">Buen estado</option>
+            <option value="reformar">A reformar</option>
+            <option value="ruina">Ruina / Derribo</option>
+          </select>
+        </div>
+        <div class="field col-full">
+          <label>Descripción del inmueble <span class="req">*</span></label>
+          <textarea id="descripcion" rows="4" placeholder="Describe la propiedad: características destacadas, orientación, vistas, calidades, reforma reciente, elementos únicos..."></textarea>
+        </div>
+      </div>
+      <div class="nav-buttons">
+        <button class="btn btn-back" onclick="goTo(1)">← Anterior</button>
+        <button class="btn btn-next" onclick="goTo(3)">Siguiente →</button>
+      </div>
+    </div>
+  </div>
+  <p class="footer-note">Los datos proporcionados se utilizarán exclusivamente para generar su informe.</p>
+</div>
+
+<!-- ── PANEL 3: DETALLES ── -->
+<div class="panel" id="p3">
+  <div class="panel-card">
+    <div class="panel-head">
+      <h2>✨ Detalles y Características</h2>
+      <p>Equipamiento, extras y datos financieros del inmueble.</p>
+    </div>
+    <div class="panel-body">
+
+      <div class="divider">Características y extras</div>
+      <div class="toggle-grid" id="toggleGrid">
+        <div class="toggle-card" data-val="ascensor" onclick="toggleFeature(this)">
+          <div class="tc-left"><span class="tc-icon">🛗</span><div class="tc-title">Ascensor</div><div class="tc-desc">Acceso cómodo a todas las plantas</div></div>
+          <div class="tc-switch"></div>
+        </div>
+        <div class="toggle-card" data-val="aire_acondicionado" onclick="toggleFeature(this)">
+          <div class="tc-left"><span class="tc-icon">❄️</span><div class="tc-title">Aire Acondicionado</div><div class="tc-desc">Climatización frío incluida</div></div>
+          <div class="tc-switch"></div>
+        </div>
+        <div class="toggle-card" data-val="calefaccion" onclick="toggleFeature(this)">
+          <div class="tc-left"><span class="tc-icon">🔥</span><div class="tc-title">Calefacción</div><div class="tc-desc">Sistema de calefacción instalado</div></div>
+          <div class="tc-switch"></div>
+        </div>
+        <div class="toggle-card" data-val="amueblado" onclick="toggleFeature(this)">
+          <div class="tc-left"><span class="tc-icon">🛋️</span><div class="tc-title">Amueblado</div><div class="tc-desc">Listo para entrar a vivir</div></div>
+          <div class="tc-switch"></div>
+        </div>
+        <div class="toggle-card" data-val="seguridad" onclick="toggleFeature(this)">
+          <div class="tc-left"><span class="tc-icon">🔒</span><div class="tc-title">Sistema de Seguridad</div><div class="tc-desc">Alarma, conserje o videovigilancia</div></div>
+          <div class="tc-switch"></div>
+        </div>
+        <div class="toggle-card" data-val="piscina" onclick="toggleFeature(this)">
+          <div class="tc-left"><span class="tc-icon">🏊</span><div class="tc-title">Piscina</div><div class="tc-desc">Piscina comunitaria o privada</div></div>
+          <div class="tc-switch"></div>
+        </div>
+        <div class="toggle-card" data-val="parking" onclick="toggleFeature(this)">
+          <div class="tc-left"><span class="tc-icon">🚗</span><div class="tc-title">Parking</div><div class="tc-desc">Plaza de garaje incluida</div></div>
+          <div class="tc-switch"></div>
+        </div>
+        <div class="toggle-card" data-val="terraza" onclick="toggleFeature(this)">
+          <div class="tc-left"><span class="tc-icon">☀️</span><div class="tc-title">Terraza</div><div class="tc-desc">Espacio exterior privado</div></div>
+          <div class="tc-switch"></div>
+        </div>
+        <div class="toggle-card" data-val="jardin" onclick="toggleFeature(this)">
+          <div class="tc-left"><span class="tc-icon">🌳</span><div class="tc-title">Jardín</div><div class="tc-desc">Zona verde privada o comunitaria</div></div>
+          <div class="tc-switch"></div>
+        </div>
+        <div class="toggle-card" data-val="trastero" onclick="toggleFeature(this)">
+          <div class="tc-left"><span class="tc-icon">📦</span><div class="tc-title">Trastero</div><div class="tc-desc">Espacio de almacenaje adicional</div></div>
+          <div class="tc-switch"></div>
+        </div>
+        <div class="toggle-card" data-val="domotica" onclick="toggleFeature(this)">
+          <div class="tc-left"><span class="tc-icon">🤖</span><div class="tc-title">Domótica</div><div class="tc-desc">Control inteligente del hogar</div></div>
+          <div class="tc-switch"></div>
+        </div>
+        <div class="toggle-card" data-val="vistas_mar" onclick="toggleFeature(this)">
+          <div class="tc-left"><span class="tc-icon">🌊</span><div class="tc-title">Vistas al Mar</div><div class="tc-desc">Vistas panorámicas al mar</div></div>
+          <div class="tc-switch"></div>
+        </div>
+        <div class="toggle-card" data-val="vistas_ciudad" onclick="toggleFeature(this)">
+          <div class="tc-left"><span class="tc-icon">🌆</span><div class="tc-title">Vistas Ciudad</div><div class="tc-desc">Vistas panorámicas urbanas</div></div>
+          <div class="tc-switch"></div>
+        </div>
+        <div class="toggle-card" data-val="portero" onclick="toggleFeature(this)">
+          <div class="tc-left"><span class="tc-icon">👨‍💼</span><div class="tc-title">Portero Físico</div><div class="tc-desc">Servicio de conserjería</div></div>
+          <div class="tc-switch"></div>
+        </div>
+        <div class="toggle-card" data-val="gimnasio" onclick="toggleFeature(this)">
+          <div class="tc-left"><span class="tc-icon">💪</span><div class="tc-title">Gimnasio</div><div class="tc-desc">Zona de fitness en el edificio</div></div>
+          <div class="tc-switch"></div>
+        </div>
+        <div class="toggle-card" data-val="spa" onclick="toggleFeature(this)">
+          <div class="tc-left"><span class="tc-icon">🛁</span><div class="tc-title">Spa / Wellness</div><div class="tc-desc">Zona de bienestar y relax</div></div>
+          <div class="tc-switch"></div>
+        </div>
+      </div>
+
+      <div class="divider">¿Qué desea hacer con el inmueble?</div>
+      <div class="accion-group" id="accionGroup">
+        <div class="accion-btn selected" data-val="vender" onclick="selectAccion(this)">
+          <div class="ab-icon">🏷️</div>
+          <div class="ab-label">Vender</div>
+        </div>
+        <div class="accion-btn" data-val="alquilar" onclick="selectAccion(this)">
+          <div class="ab-icon">🔑</div>
+          <div class="ab-label">Alquilar</div>
+        </div>
+        <div class="accion-btn" data-val="vender_alquilar" onclick="selectAccion(this)">
+          <div class="ab-icon">🔄</div>
+          <div class="ab-label">Vender o Alquilar</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label>Calificación energética</label>
+          <select id="certificado_energetico">
+            <option value="">Seleccionar</option>
+            <option value="A">A — Muy Eficiente</option>
+            <option value="B">B</option><option value="C">C</option>
+            <option value="D">D</option><option value="E">E</option>
+            <option value="F">F</option>
+            <option value="G">G — Menos Eficiente</option>
+            <option value="tramite">En trámite</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Gastos de comunidad (€/mes)</label>
+          <input type="number" id="gastos_comunidad" placeholder="Ej: 80" min="0"/>
+        </div>
+        <div class="field">
+          <label>IBI anual (€)</label>
+          <input type="number" id="ibi" placeholder="Ej: 800" min="0"/>
+        </div>
+        <div class="field">
+          <label>Otros gastos anuales (€)</label>
+          <input type="number" id="otros_gastos" placeholder="Ej: 500" min="0"/>
+        </div>
+        <div class="field col-full">
+          <label>¿Necesita reforma?</label>
+          <select id="coste_reforma">
+            <option value="0">No necesita reforma</option>
+            <option value="15000">Reforma ligera (~15.000 €)</option>
+            <option value="30000">Reforma media (~30.000 €)</option>
+            <option value="60000">Reforma completa (~60.000 €)</option>
+            <option value="100000">Reforma integral (~100.000 €)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="nav-buttons">
+        <button class="btn btn-back" onclick="goTo(2)">← Anterior</button>
+        <button class="btn btn-next" onclick="goTo(4)">Siguiente →</button>
+      </div>
+    </div>
+  </div>
+  <p class="footer-note">Los datos proporcionados se utilizarán exclusivamente para generar su informe.</p>
+</div>
+
+<!-- ── PANEL 4: INFORME ── -->
+<div class="panel" id="p4">
+  <div class="panel-card">
+    <div class="panel-head">
+      <h2>📋 Configuración del Informe</h2>
+      <p>Define el enfoque del dossier, los datos de zona y los datos del agente.</p>
+    </div>
+    <div class="panel-body">
+
+      <div class="divider">Tipo de dossier</div>
+      <div class="tipo-group" id="tipoGroup">
+        <div class="tipo-card selected" data-val="inversores" onclick="selectTipo(this)">
+          <div class="ti-icon">📈</div>
+          <div class="ti-title">Para Inversores</div>
+          <div class="ti-desc">ROI, rentabilidad, análisis financiero, estrategia de inversión, riesgos</div>
+        </div>
+        <div class="tipo-card" data-val="particulares" onclick="selectTipo(this)">
+          <div class="ti-icon">🏡</div>
+          <div class="ti-title">Para Particulares</div>
+          <div class="ti-desc">Calidad de vida, zona, diseño, experiencia de hogar, narrativa emocional</div>
+        </div>
+      </div>
+
+      <div class="divider">Idioma del dossier</div>
+      <div class="idioma-group" id="idiomaGroup">
+        <div class="idioma-btn selected" data-val="es" onclick="selectIdioma(this)">🇪🇸 Español</div>
+        <div class="idioma-btn" data-val="en" onclick="selectIdioma(this)">🇬🇧 English</div>
+      </div>
+
+      <div class="divider">Análisis de la zona</div>
+      <div class="grid-2">
+        <div class="field">
+          <label>Demanda de alquiler en zona</label>
+          <select id="demanda_alquiler">
+            <option value="">Seleccionar...</option>
+            <option value="muy_alta">⬆⬆ Muy Alta</option>
+            <option value="alta">⬆ Alta</option>
+            <option value="media">→ Media</option>
+            <option value="baja">⬇ Baja</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Perfil de compradores en zona</label>
+          <select id="perfil_compradores">
+            <option value="">Seleccionar...</option>
+            <option value="lujo">Lujo / Premium</option>
+            <option value="ejecutivos">Ejecutivos / Profesionales</option>
+            <option value="familias">Familias</option>
+            <option value="jovenes">Jóvenes / Estudiantes</option>
+            <option value="turistas">Turistas / Temporada</option>
+            <option value="mixto">Mixto</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Precio medio m² en zona (€)</label>
+          <input type="number" id="precio_m2_zona" placeholder="Ej: 4500" min="0"/>
+        </div>
+        <div class="field">
+          <label>Alquiler medio m²/mes en zona (€)</label>
+          <input type="number" id="alquiler_m2_zona" placeholder="Ej: 18" min="0" step="0.5"/>
+        </div>
+        <div class="field">
+          <label>Potencial de revalorización</label>
+          <select id="revalorizacion">
+            <option value="">Seleccionar...</option>
+            <option value="muy_alto">★★★★★ Muy Alto</option>
+            <option value="alto">★★★★ Alto</option>
+            <option value="moderado">★★★ Moderado</option>
+            <option value="bajo">★★ Bajo</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Tipo de alquiler objetivo</label>
+          <select id="tipo_alquiler">
+            <option value="larga_duracion">Larga duración</option>
+            <option value="temporal">Temporal / Corporativo</option>
+            <option value="turistico">Turístico (Airbnb)</option>
+            <option value="comercial">Comercial</option>
+          </select>
+        </div>
+        <div class="field col-full">
+          <label>Servicios y puntos de interés cercanos</label>
+          <textarea id="servicios_cercanos" rows="3" placeholder="Metro, colegios, hospitales, centros comerciales, restaurantes, parques... (menciona los más relevantes con distancia aproximada)"></textarea>
+        </div>
+        <div class="field col-full">
+          <label>Tendencia del mercado en la zona</label>
+          <textarea id="tendencia_mercado" rows="3" placeholder="¿El mercado está en alza? ¿Zona en proceso de gentrificación? ¿Nuevas infraestructuras previstas? ¿Escasez de oferta?"></textarea>
+        </div>
+      </div>
+
+      <div class="divider" id="div-financiero">Datos financieros (inversión)</div>
+      <div class="grid-2" id="bloque-financiero">
+        <div class="field">
+          <label>Renta mensual estimada (€)</label>
+          <input type="number" id="renta_mensual" placeholder="Ej: 1500" min="0"/>
+        </div>
+        <div class="field">
+          <label>Ocupación estimada (%)</label>
+          <div class="range-wrapper" style="padding-top:24px;">
+            <span class="range-val" id="ocup-val">90%</span>
+            <input type="range" id="ocupacion" min="50" max="100" value="90"
+              oninput="document.getElementById('ocup-val').textContent=this.value+'%';updateRangeStyle(this)"/>
+          </div>
+        </div>
+        <div class="field col-full">
+          <label>Información adicional para inversores / promotores</label>
+          <textarea id="info_adicional_inversores" rows="3" placeholder="Licencia turística, edificabilidad, calificación urbanística, contratos de alquiler existentes..."></textarea>
+        </div>
+      </div>
+
+      <div class="divider">Opciones del dossier</div>
+      <div class="grid-2">
+        <div class="field">
+          <label>Web / Redes sociales (opcional)</label>
+          <input type="text" id="web_agente" placeholder="www.tuinmobiliaria.com"/>
+        </div>
+        <div class="field">
+          <label>Teléfono de contacto para el dossier</label>
+          <input type="tel" id="telefono_agente" placeholder="+34 600 000 000"/>
+        </div>
+      </div>
+
+      <!-- Confidencial toggle -->
+      <div style="margin-top:8px;">
+        <div class="toggle-card" id="confCard" onclick="toggleConf()" style="max-width:320px;">
+          <div class="tc-left"><span class="tc-icon">🔒</span><div class="tc-title">Documento Confidencial</div><div class="tc-desc">Marca el dossier como confidencial</div></div>
+          <div class="tc-switch" id="confSwitch"></div>
+        </div>
+      </div>
+
+      <div class="nav-buttons">
+        <button class="btn btn-back" onclick="goTo(3)">← Anterior</button>
+        <button class="btn btn-next" onclick="goTo(5)">Siguiente →</button>
+      </div>
+    </div>
+  </div>
+  <p class="footer-note">Los datos proporcionados se utilizarán exclusivamente para generar su informe.</p>
+</div>
+
+<!-- ── PANEL 5: FOTOS ── -->
+<div class="panel" id="p5">
+  <div class="panel-card">
+    <div class="panel-head">
+      <h2>📸 Fotos y planos</h2>
+      <p>Sube imágenes o planos del inmueble que se incluirán en el dossier.</p>
+    </div>
+    <div class="panel-body">
+      <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()"
+           ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropFiles(event)">
+        <div class="upload-icon">📤</div>
+        <div class="upload-title">Arrastra o haz clic para subir imágenes</div>
+        <div class="upload-hint">JPG, PNG · múltiples archivos · máx. 10 MB por imagen</div>
+      </div>
+      <input type="file" id="fileInput" multiple accept="image/*" onchange="addFiles(this.files)"/>
+
+      <div class="photo-preview" id="photoPreview"></div>
+
+      <div class="info-box">
+        <span class="ii">💡</span>
+        <span>Las fotos se integrarán en el dossier con análisis visual profesional. Sube imágenes del interior, exterior, vistas y planos para un resultado más completo.</span>
+      </div>
+
+      <div class="nav-buttons">
+        <button class="btn btn-back" onclick="goTo(4)">← Anterior</button>
+        <button class="btn btn-generate" onclick="submitForm()" id="btnGenerate">
+          ✓ Generar dossier
+        </button>
+      </div>
+    </div>
+  </div>
+  <p class="footer-note">Los datos proporcionados se utilizarán exclusivamente para generar su informe.</p>
+</div>
+
+<!-- SUCCESS -->
+<div class="panel" id="p-success">
+  <div class="panel-card">
+    <div class="success-panel">
+      <div class="success-icon">✅</div>
+      <h2>¡Dossier generado!</h2>
+      <p>El dossier premium se ha descargado automáticamente en tu dispositivo.</p>
+      <button class="btn btn-next" onclick="resetForm()" style="margin:0 auto;">+ Crear otro dossier</button>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-title">Generando tu dossier premium...</div>
+  <div class="loading-sub">Analizando datos y creando el informe</div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+let currentStep = 1;
+let activeFeatures = new Set();
+let accionValue = 'vender';
+let tipoValue = 'inversores';
+let idiomaValue = 'es';
+let confValue = false;
+let uploadedFiles = [];
+
+// ── NAVIGATION ──
+function goTo(step) {
+  if (step > currentStep && !validate(currentStep)) return;
+  const prev = currentStep;
+  // Update previous step
+  document.getElementById(`si-${prev}`).classList.remove('active');
+  if (step > prev) document.getElementById(`si-${prev}`).classList.add('done');
+  else document.getElementById(`si-${prev}`).classList.remove('done');
+  // Update circles for done steps
+  if (step > prev) document.getElementById(`sc-${prev}`).textContent = '✓';
+  else document.getElementById(`sc-${prev}`).textContent = prev;
+
+  document.getElementById(`p${prev}`).classList.remove('active');
+  currentStep = step;
+  document.getElementById(`si-${step}`).classList.add('active');
+  document.getElementById(`si-${step}`).classList.remove('done');
+  document.getElementById(`sc-${step}`).textContent = step;
+  document.getElementById(`p${step}`).classList.add('active');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ── VALIDATION ──
+function validate(step) {
+  if (step === 1) {
+    if (!v('nombre_destinatario')) { toast('Introduce el nombre del destinatario'); return false; }
+    if (!v('email_destinatario') || !v('email_destinatario').includes('@')) { toast('Introduce un email válido'); return false; }
+  }
+  if (step === 2) {
+    if (!v('tipo_propiedad')) { toast('Selecciona el tipo de inmueble'); return false; }
+    if (!v('direccion')) { toast('Introduce la dirección'); return false; }
+    if (!v('ciudad')) { toast('Introduce la ciudad'); return false; }
+    if (!v('precio_venta') || parseFloat(v('precio_venta')) <= 0) { toast('Introduce el precio de venta'); return false; }
+    if (!v('metros_construidos') || parseFloat(v('metros_construidos')) <= 0) { toast('Introduce la superficie'); return false; }
+    if (!v('descripcion')) { toast('Describe el inmueble'); return false; }
+  }
+  // Step 4 has no mandatory fields beyond what's already validated
+  return true;
+}
+
+function v(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+
+// ── FEATURES (toggles) ──
+function toggleFeature(card) {
+  const val = card.dataset.val;
+  card.classList.toggle('on');
+  if (card.classList.contains('on')) activeFeatures.add(val);
+  else activeFeatures.delete(val);
+}
+
+// ── ACCIÓN ──
+function selectAccion(btn) {
+  document.querySelectorAll('#accionGroup .accion-btn').forEach(b=>b.classList.remove('selected'));
+  btn.classList.add('selected');
+  accionValue = btn.dataset.val;
+}
+
+// ── TIPO DOSSIER ──
+function selectTipo(card) {
+  document.querySelectorAll('#tipoGroup .tipo-card').forEach(c=>c.classList.remove('selected'));
+  card.classList.add('selected');
+  tipoValue = card.dataset.val;
+  // Show/hide financial block
+  const fin = document.getElementById('bloque-financiero');
+  const divFin = document.getElementById('div-financiero');
+  if (tipoValue === 'inversores') { fin.style.display=''; divFin.style.display=''; }
+  else { fin.style.display='none'; divFin.style.display='none'; }
+}
+
+// ── IDIOMA ──
+function selectIdioma(btn) {
+  document.querySelectorAll('#idiomaGroup .idioma-btn').forEach(b=>b.classList.remove('selected'));
+  btn.classList.add('selected');
+  idiomaValue = btn.dataset.val;
+}
+
+// ── CONFIDENCIAL ──
+function toggleConf() {
+  confValue = !confValue;
+  document.getElementById('confCard').classList.toggle('on', confValue);
+  document.getElementById('confSwitch').classList.toggle('on', confValue);
+}
+
+// ── RANGE STYLE ──
+function updateRangeStyle(input) {
+  const pct = ((input.value - input.min) / (input.max - input.min)) * 100;
+  input.style.background = `linear-gradient(to right,var(--gold) ${pct}%,var(--border) ${pct}%)`;
+}
+// Init range
+window.addEventListener('load', () => {
+  const r = document.getElementById('ocupacion');
+  if(r) updateRangeStyle(r);
+});
+
+// ── FILE UPLOAD ──
+function dragOver(e) { e.preventDefault(); document.getElementById('uploadArea').classList.add('drag-over'); }
+function dragLeave(e) { document.getElementById('uploadArea').classList.remove('drag-over'); }
+function dropFiles(e) {
+  e.preventDefault();
+  document.getElementById('uploadArea').classList.remove('drag-over');
+  addFiles(e.dataTransfer.files);
+}
+function addFiles(files) {
+  for (const f of files) {
+    if (!f.type.startsWith('image/')) continue;
+    if (uploadedFiles.length >= 10) { toast('Máximo 10 imágenes'); break; }
+    uploadedFiles.push(f);
+    const reader = new FileReader();
+    reader.onload = (e) => addThumb(e.target.result, uploadedFiles.length - 1);
+    reader.readAsDataURL(f);
+  }
+  document.getElementById('fileInput').value = '';
+}
+function addThumb(src, idx) {
+  const preview = document.getElementById('photoPreview');
+  const wrap = document.createElement('div');
+  wrap.className = 'photo-item';
+  wrap.dataset.idx = idx;
+  wrap.innerHTML = `<img class="photo-thumb" src="${src}"/><button class="photo-remove" onclick="removePhoto(${idx})">✕</button>`;
+  preview.appendChild(wrap);
+}
+function removePhoto(idx) {
+  uploadedFiles.splice(idx, 1);
+  const preview = document.getElementById('photoPreview');
+  preview.innerHTML = '';
+  uploadedFiles.forEach((f, i) => {
+    const reader = new FileReader();
+    reader.onload = (e) => addThumb(e.target.result, i);
+    reader.readAsDataURL(f);
+  });
+}
+
+// ── SUBMIT ──
+async function submitForm() {
+  if (!validate(4)) { goTo(4); return; }
+
+  document.getElementById('loadingOverlay').classList.add('active');
+  document.getElementById('btnGenerate').disabled = true;
+
+  const fd = new FormData();
+  // Text fields
+  const fields = [
+    'nombre_destinatario','email_destinatario','telefono_destinatario','empresa_destinatario',
+    'tipo_propiedad','direccion','ciudad','provincia','cp','barrio',
+    'precio_venta','metros_construidos','metros_utiles','dormitorios','banos',
+    'anyo_construccion','estado','descripcion',
+    'certificado_energetico','gastos_comunidad','ibi','otros_gastos','coste_reforma',
+    'demanda_alquiler','perfil_compradores','precio_m2_zona','alquiler_m2_zona',
+    'revalorizacion','tipo_alquiler','servicios_cercanos','tendencia_mercado',
+    'renta_mensual','ocupacion','info_adicional_inversores',
+    'telefono_agente','web_agente'
+  ];
+  fields.forEach(id => { const el = document.getElementById(id); if(el) fd.append(id, el.value||''); });
+
+  // Computed values
+  fd.append('caracteristicas', JSON.stringify([...activeFeatures]));
+  fd.append('accion', accionValue);
+  fd.append('tipo_dossier', tipoValue);
+  fd.append('idioma', idiomaValue);
+  fd.append('confidencial', confValue ? '1' : '0');
+
+  // Photos
+  uploadedFiles.forEach((f, i) => fd.append(`foto_${i}`, f, f.name));
+  fd.append('num_fotos', uploadedFiles.length.toString());
+
+  try {
+    const res = await fetch('/generar-dossier', { method:'POST', body:fd });
+    const contentType = res.headers.get('Content-Type') || '';
+
+    if (contentType.includes('application/pdf')) {
+      // ── Éxito: descargar el PDF ──────────────────────────────────────────
+      const blob = await res.blob();
+      const filename = res.headers.get('X-Filename') || 'Dossier_Premium.pdf';
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+
+      document.getElementById('loadingOverlay').classList.remove('active');
+      document.getElementById('p5').classList.remove('active');
+      document.getElementById('p-success').classList.add('active');
+      window.scrollTo({top:0,behavior:'smooth'});
+    } else {
+      // ── Error: el servidor devolvió JSON con el mensaje de error ─────────
+      let msg = 'Error desconocido';
+      try {
+        const data = await res.json();
+        msg = data.error || msg;
+      } catch(_) {
+        const text = await res.text().catch(() => '');
+        msg = text.substring(0, 200) || msg;
+      }
+      throw new Error(msg);
+    }
+  } catch(e) {
+    document.getElementById('loadingOverlay').classList.remove('active');
+    document.getElementById('btnGenerate').disabled = false;
+    toast('Error: ' + e.message);
+  }
+}
+
+function resetForm() { location.reload(); }
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 4000);
+}
+</script>
+</body>
+</html>
