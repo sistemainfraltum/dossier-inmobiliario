@@ -70,7 +70,7 @@ def get_ai_reply(phone: str, user_msg: str) -> str:
         )
         reply = resp.content[0].text
     except Exception:
-        reply = "Hola, soy Sofía de Sistema Infraltum. ¿En qué propiedad de lujo está interesado/a?"
+        reply = "Hola, buenas . En qué propiedad de lujo está interesado/a?"
     history.append({"role": "assistant", "content": reply})
     return reply
 
@@ -101,7 +101,7 @@ def webhook_verify():
     mode      = request.args.get('hub.mode')
     token     = request.args.get('hub.verify_token')
     challenge = request.args.get('hub.challenge')
-    if mode == 'subscribe' and token == VERIFY_TOKEN:
+    if mode == 'subscribe' and token == VERIFY_TOKEN = os.environ.get('VERIFY_TOKEN', 'infraltum2024demo')
         from flask import Response
         return Response(challenge, status=200, mimetype='text/plain')
     return 'Forbidden', 403
