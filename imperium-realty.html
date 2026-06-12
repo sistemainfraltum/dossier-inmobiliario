@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Imperium Realty | Inmobiliaria de Lujo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,900;1,400;1,600&family=Jost:wght@200;300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root{--white:#FFFFFF;--off-white:#FAFAF8;--cream:#F6F0E6;--beige:#E8DCC8;--beige-mid:#D4C4A8;--beige-dark:#C4A882;--gold:#B8924A;--navy:#0C1D36;--navy-mid:#1A3055;--navy-light:#3A5472;--navy-pale:#7A8EA8;--text:#1A2740;--text-muted:#6B7D92;--border:#E4DDD4;--border-light:#F0EBE4;--shadow:0 4px 30px rgba(12,29,54,0.08);--shadow-hover:0 20px 60px rgba(12,29,54,0.15)}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;font-size:16px}
+body{font-family:'Jost',sans-serif;background:var(--white);color:var(--text);overflow-x:hidden}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--off-white)}::-webkit-scrollbar-thumb{background:var(--beige-dark);border-radius:3px}
+img{display:block;max-width:100%}a{text-decoration:none;color:inherit}button{font-family:'Jost',sans-serif;cursor:pointer}
+#nav{position:fixed;top:0;left:0;right:0;z-index:900;display:flex;align-items:center;justify-content:space-between;padding:0 60px;height:76px;background:rgba(255,255,255,0);border-bottom:1px solid transparent;transition:all .4s}
+#nav.solid{background:rgba(255,255,255,.97);border-bottom-color:var(--border-light);backdrop-filter:blur(12px);height:64px}
+.nav-logo{display:flex;align-items:center}
+.nav-logo-text{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;letter-spacing:3px;color:var(--white);text-transform:uppercase;transition:color .4s}
+#nav.solid .nav-logo-text{color:var(--navy)}
+.nav-logo-sep{width:1px;height:28px;background:rgba(255,255,255,.5);margin:0 14px;transition:background .4s}
+#nav.solid .nav-logo-sep{background:var(--beige-mid)}
+.nav-logo-sub{font-size:9px;font-weight:300;letter-spacing:5px;text-transform:uppercase;color:rgba(255,255,255,.8);transition:color .4s}
+#nav.solid .nav-logo-sub{color:var(--navy-pale)}
+.nav-links{display:flex;align-items:center;gap:36px;list-style:none}
+.nav-links a{font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.85);transition:color .3s}
+#nav.solid .nav-links a{color:var(--text-muted)}
+.nav-links a:hover,#nav.solid .nav-links a:hover{color:var(--gold)}
+.nav-cta{padding:10px 26px;border:1px solid rgba(255,255,255,.6);font-size:10px;font-weight:500;letter-spacing:2px;text-transform:uppercase;color:var(--white);background:transparent;transition:all .3s}
+#nav.solid .nav-cta{border-color:var(--navy);color:var(--navy)}
+.nav-cta:hover,#nav.solid .nav-cta:hover{background:var(--navy)!important;color:var(--white)!important;border-color:var(--navy)!important}
+#hero{position:relative;width:100%;height:100vh;overflow:hidden}
+.slide{position:absolute;inset:0;opacity:0;transition:opacity 1.2s}
+.slide.active{opacity:1}
+.slide-img{width:100%;height:100%;object-fit:cover;animation:kB 8s ease-in-out infinite alternate}
+.slide.active .slide-img{animation-play-state:running}
+.slide:not(.active) .slide-img{animation-play-state:paused}
+@keyframes kB{from{transform:scale(1)}to{transform:scale(1.08);transform-origin:60% 40%}}
+.slide-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(12,29,54,.2) 0%,rgba(12,29,54,.1) 40%,rgba(12,29,54,.55) 100%)}
+.hero-content{position:absolute;bottom:120px;left:80px;right:80px;display:flex;justify-content:space-between;align-items:flex-end}
+.hero-text{max-width:580px;opacity:0;transform:translateY(20px);transition:all .8s ease .3s}
+.slide.active .hero-text{opacity:1;transform:translateY(0)}
+.hero-city{display:inline-flex;align-items:center;gap:10px;font-size:10px;letter-spacing:5px;text-transform:uppercase;color:var(--beige);margin-bottom:16px}
+.hero-city::before{content:'';width:30px;height:1px;background:var(--beige-dark)}
+.hero-name{font-family:'Playfair Display',serif;font-size:clamp(38px,5vw,64px);font-weight:600;line-height:1.08;color:var(--white);margin-bottom:14px}
+.hero-price{font-size:22px;font-weight:300;letter-spacing:2px;color:rgba(255,255,255,.85)}
+.hero-price span{color:var(--beige-dark)}
+.hero-actions{display:flex;flex-direction:column;gap:12px;align-items:flex-end}
+.hero-btn-main{padding:14px 32px;background:var(--white);color:var(--navy);font-size:10px;font-weight:600;letter-spacing:2px;text-transform:uppercase;border:none;transition:all .3s}
+.hero-btn-main:hover{background:var(--cream)}
+.hero-btn-sec{padding:14px 32px;background:transparent;color:var(--white);font-size:10px;font-weight:500;letter-spacing:2px;text-transform:uppercase;border:1px solid rgba(255,255,255,.5);transition:all .3s}
+.hero-btn-sec:hover{background:rgba(255,255,255,.1)}
+.carousel-arrow{position:absolute;top:50%;transform:translateY(-50%);z-index:10;width:52px;height:52px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);color:var(--white);font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .3s;backdrop-filter:blur(4px)}
+.carousel-arrow:hover{background:rgba(255,255,255,.25)}
+.arrow-prev{left:24px}.arrow-next{right:24px}
+.carousel-dots{position:absolute;bottom:36px;left:50%;transform:translateX(-50%);display:flex;gap:10px;z-index:10}
+.dot{width:28px;height:2px;background:rgba(255,255,255,.4);cursor:pointer;transition:all .3s}
+.dot.active{background:var(--white);width:44px}
+.hero-scroll{position:absolute;bottom:36px;right:60px;display:flex;align-items:center;gap:10px;z-index:10;color:rgba(255,255,255,.5);font-size:9px;letter-spacing:4px;text-transform:uppercase}
+.scroll-line{width:1px;height:44px;background:linear-gradient(var(--beige-dark),transparent)}
+.slide-count{position:absolute;top:50%;right:28px;transform:translateY(-50%);writing-mode:vertical-lr;z-index:10;font-size:10px;letter-spacing:3px;color:rgba(255,255,255,.4);display:flex;align-items:center;gap:8px}
+.count-current{color:var(--white);font-size:13px;font-weight:500}
+.section-wrap{padding:90px 60px}
+.section-header{margin-bottom:54px}
+.eyebrow{font-size:10px;letter-spacing:5px;text-transform:uppercase;color:var(--gold);display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.eyebrow::after{content:'';flex:none;width:50px;height:1px;background:var(--beige-dark)}
+h2.section-title{font-family:'Playfair Display',serif;font-size:clamp(30px,3.5vw,46px);font-weight:600;line-height:1.15;color:var(--navy)}
+h2.section-title em{font-style:italic;color:var(--navy-light)}
+.section-desc{font-size:15px;font-weight:300;color:var(--text-muted);line-height:1.9;max-width:500px}
+.filters-wrap{padding:28px 60px 0;border-bottom:1px solid var(--border-light)}
+.filters-inner{display:flex;align-items:center;flex-wrap:wrap}
+.type-tabs{display:flex;margin-right:auto}
+.type-tab{padding:14px 22px;border:none;background:none;font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);border-bottom:2px solid transparent;transition:all .25s}
+.type-tab:hover{color:var(--navy)}.type-tab.active{color:var(--navy);border-bottom-color:var(--gold)}
+.filter-selects{display:flex;gap:10px;align-items:center}
+.filter-select{padding:10px 32px 10px 18px;border:1px solid var(--border);background:var(--off-white);color:var(--text);font-family:'Jost',sans-serif;font-size:12px;letter-spacing:1px;outline:none;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236B7D92' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+#propiedades{padding:60px 60px 90px}
+.props-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:36px 28px}
+.prop-card{cursor:pointer;position:relative;transform-style:preserve-3d;transition:transform .12s ease,box-shadow .3s;will-change:transform;background:var(--white)}
+.prop-card:hover{box-shadow:var(--shadow-hover);z-index:2}
+.card-img-wrap{position:relative;overflow:hidden;aspect-ratio:4/3}
+.card-img{width:100%;height:100%;object-fit:cover;transition:transform .7s}
+.prop-card:hover .card-img{transform:scale(1.06)}
+.card-badge{position:absolute;top:16px;left:16px;z-index:2;padding:5px 14px;font-size:9px;font-weight:600;letter-spacing:2px;text-transform:uppercase}
+.badge-exclusiva{background:var(--navy);color:var(--white)}.badge-nueva{background:var(--gold);color:var(--white)}.badge-reducida{background:var(--white);color:var(--navy);border:1px solid var(--navy)}
+.card-overlay{position:absolute;inset:0;background:rgba(12,29,54,.45);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .35s;z-index:3}
+.prop-card:hover .card-overlay{opacity:1}
+.card-overlay-btn{padding:12px 28px;background:var(--white);color:var(--navy);font-size:10px;font-weight:600;letter-spacing:2px;text-transform:uppercase;border:none;transform:translateY(8px);transition:transform .35s}
+.prop-card:hover .card-overlay-btn{transform:translateY(0)}
+.card-fav{position:absolute;top:16px;right:16px;z-index:4;width:34px;height:34px;background:rgba(255,255,255,.9);border:none;display:flex;align-items:center;justify-content:center;font-size:16px;transition:all .3s;color:var(--text-muted)}
+.card-fav:hover{background:var(--white);color:var(--gold)}.card-fav.active{color:var(--gold)}
+.card-body{padding:22px 4px 28px}
+.card-location{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:8px;display:flex;align-items:center;gap:5px}
+.card-name{font-family:'Playfair Display',serif;font-size:20px;font-weight:600;color:var(--navy);line-height:1.25;margin-bottom:12px}
+.card-price{font-size:20px;font-weight:300;color:var(--navy);letter-spacing:1px;margin-bottom:16px}
+.card-price strong{font-weight:600}
+.card-specs{display:flex;border-top:1px solid var(--border-light);padding-top:16px}
+.card-spec{flex:1;text-align:center;padding:0 6px;border-right:1px solid var(--border-light);display:flex;flex-direction:column;gap:3px}
+.card-spec:last-child{border-right:none}
+.spec-val{font-size:15px;font-weight:500;color:var(--navy)}.spec-key{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted)}
+.prop-card.hidden{display:none}
+.reveal{opacity:0;transform:translateY(28px);transition:opacity .7s,transform .7s}
+.reveal.visible{opacity:1;transform:translateY(0)}
+#stats{background:var(--navy);padding:60px;display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--navy-mid)}
+.stat{text-align:center;border-right:1px solid rgba(255,255,255,.1);padding:0 20px}.stat:last-child{border-right:none}
+.stat-num{font-family:'Playfair Display',serif;font-size:48px;font-weight:700;color:var(--beige-dark);line-height:1}
+.stat-label{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,.5);margin-top:8px}
+#featured{display:grid;grid-template-columns:1fr 1fr;min-height:520px;overflow:hidden}
+.featured-img{position:relative;overflow:hidden}
+.featured-img img{width:100%;height:100%;object-fit:cover;transition:transform .8s}
+#featured:hover .featured-img img{transform:scale(1.04)}
+.featured-overlay{position:absolute;inset:0;background:linear-gradient(90deg,transparent 50%,var(--cream) 100%)}
+.featured-body{background:var(--cream);padding:70px 60px;display:flex;flex-direction:column;justify-content:center}
+.featured-price-big{font-family:'Playfair Display',serif;font-size:clamp(32px,3.5vw,48px);font-weight:600;color:var(--navy);margin-bottom:6px}
+.featured-name{font-family:'Playfair Display',serif;font-size:28px;color:var(--navy-mid);font-style:italic;margin-bottom:18px}
+.featured-desc{font-size:14px;font-weight:300;color:var(--text-muted);line-height:1.9;margin-bottom:32px;max-width:420px}
+.featured-specs{display:flex;gap:32px;margin-bottom:36px}
+.fspec{display:flex;flex-direction:column;gap:3px}
+.fspec-val{font-family:'Playfair Display',serif;font-size:28px;font-weight:600;color:var(--navy)}
+.fspec-key{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gold)}
+.btn-navy{display:inline-flex;align-items:center;gap:10px;width:fit-content;padding:15px 34px;background:var(--navy);color:var(--white);font-size:10px;font-weight:600;letter-spacing:2px;text-transform:uppercase;border:none;transition:all .3s}
+.btn-navy:hover{background:var(--navy-mid);transform:translateY(-2px);box-shadow:var(--shadow)}
+.btn-outline{display:inline-flex;align-items:center;gap:10px;width:fit-content;padding:15px 34px;background:transparent;color:var(--navy);font-size:10px;font-weight:600;letter-spacing:2px;text-transform:uppercase;border:1px solid var(--navy);transition:all .3s}
+.btn-outline:hover{background:var(--navy);color:var(--white)}
+.btn-wa{display:inline-flex;align-items:center;gap:8px;padding:15px 24px;background:#25D366;color:#fff;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;border:none;cursor:pointer;text-decoration:none;transition:all .3s;white-space:nowrap}
+.btn-wa:hover{background:#1ebe5d;transform:translateY(-2px)}
+.card-wa{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:10px;background:#25D366;color:#fff;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;border:none;cursor:pointer;text-decoration:none;transition:background .3s;margin-top:12px}
+.card-wa:hover{background:#1ebe5d}
+.card-wa svg{flex-shrink:0}
+#nosotros{background:var(--off-white)}
+.about-inner{display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center}
+.about-imgs{position:relative;height:520px}
+.about-main{position:absolute;top:0;left:0;width:72%;height:78%;overflow:hidden;box-shadow:var(--shadow-hover)}
+.about-main img,.about-sec img{width:100%;height:100%;object-fit:cover}
+.about-sec{position:absolute;bottom:0;right:0;width:50%;height:50%;overflow:hidden;box-shadow:var(--shadow-hover);border:3px solid var(--white)}
+.about-years{position:absolute;top:46%;left:62%;transform:translate(-50%,-50%);width:96px;height:96px;background:var(--gold);border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 8px 32px rgba(184,146,74,.35);z-index:5}
+.about-years-num{font-family:'Playfair Display',serif;font-size:26px;font-weight:700;color:var(--white);line-height:1}
+.about-years-txt{font-size:7px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.9)}
+.about-text .signature{font-family:'Playfair Display',serif;font-style:italic;font-size:34px;color:var(--navy);margin:28px 0 4px}
+.about-text .sign-role{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--text-muted)}
+#contacto{background:var(--cream)}
+.contact-inner{display:grid;grid-template-columns:1fr 1.2fr;gap:80px}
+.contact-info{display:flex;flex-direction:column;gap:28px}
+.contact-item{display:flex;gap:18px;align-items:flex-start}
+.contact-icon{width:44px;height:44px;flex-shrink:0;background:var(--white);border:1px solid var(--border);display:flex;align-items:center;justify-content:center}
+.contact-item-label{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:4px}
+.contact-item-val{font-size:15px;font-weight:300;color:var(--navy)}
+.contact-item-sub{font-size:12px;color:var(--text-muted)}
+.contact-form{display:flex;flex-direction:column;gap:16px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.form-group{display:flex;flex-direction:column;gap:8px}
+.form-label{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--navy)}
+.form-input,.form-textarea,.form-select-full{padding:14px 16px;border:1px solid var(--border);background:var(--white);color:var(--text);font-family:'Jost',sans-serif;font-size:14px;font-weight:300;outline:none;transition:border-color .25s;width:100%}
+.form-input:focus,.form-textarea:focus,.form-select-full:focus{border-color:var(--navy)}
+.form-textarea{resize:vertical;min-height:120px}
+.form-select-full{appearance:none;cursor:pointer}
+footer{background:var(--navy);padding:60px 60px 28px;border-top:1px solid var(--navy-mid)}
+.footer-grid{display:grid;grid-template-columns:1.8fr 1fr 1fr 1fr;gap:50px;margin-bottom:48px}
+.footer-logo-text{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;letter-spacing:3px;color:var(--white);text-transform:uppercase}
+.footer-tagline{font-size:9px;letter-spacing:4px;text-transform:uppercase;color:var(--navy-pale);margin-top:4px}
+.footer-desc{font-size:13px;font-weight:300;color:rgba(255,255,255,.5);line-height:1.9;margin-top:18px;max-width:260px}
+.footer-col-title{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--beige-dark);margin-bottom:20px}
+.footer-links{list-style:none;display:flex;flex-direction:column;gap:11px}
+.footer-links a{font-size:13px;font-weight:300;color:rgba(255,255,255,.5);transition:color .3s}
+.footer-links a:hover{color:var(--white)}
+.footer-bottom{border-top:1px solid rgba(255,255,255,.08);padding-top:24px;display:flex;justify-content:space-between;align-items:center}
+.footer-bottom p{font-size:12px;color:rgba(255,255,255,.3)}
+.footer-bottom span{color:var(--beige-dark)}
+.footer-social{display:flex;gap:10px}
+.social-link{width:34px;height:34px;border:1px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.4);font-size:12px;font-weight:600;transition:all .3s}
+.social-link:hover{border-color:var(--beige-dark);color:var(--beige-dark)}
+#modal-overlay{position:fixed;inset:0;z-index:9000;background:rgba(12,29,54,.65);display:flex;align-items:stretch;opacity:0;pointer-events:none;transition:opacity .4s;backdrop-filter:blur(4px)}
+#modal-overlay.open{opacity:1;pointer-events:all}
+#modal-box{display:grid;grid-template-columns:55% 45%;width:100%;max-height:100vh;overflow:hidden;transform:translateY(30px);transition:transform .4s;background:var(--white)}
+#modal-overlay.open #modal-box{transform:translateY(0)}
+.modal-gallery{background:var(--navy);position:relative;display:flex;flex-direction:column}
+.modal-main-img{flex:1;overflow:hidden}
+.modal-main-img img{width:100%;height:100%;object-fit:cover;transition:opacity .4s}
+.modal-thumbs{display:flex;gap:4px;padding:10px;background:rgba(0,0,0,.3)}
+.modal-thumb{flex:1;aspect-ratio:16/9;overflow:hidden;cursor:pointer;opacity:.55;transition:opacity .3s}
+.modal-thumb:hover,.modal-thumb.active{opacity:1}
+.modal-thumb img{width:100%;height:100%;object-fit:cover}
+.modal-close{position:absolute;top:16px;right:16px;z-index:10;width:40px;height:40px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:var(--white);font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .3s}
+.modal-close:hover{background:rgba(255,255,255,.3)}
+.modal-body{padding:32px 40px 40px;overflow-y:auto;display:flex;flex-direction:column;gap:16px}
+.modal-body::-webkit-scrollbar{width:4px}
+.modal-body::-webkit-scrollbar-thumb{background:var(--beige)}
+.modal-tags{display:flex;gap:8px;flex-wrap:wrap}
+.modal-tag{padding:5px 14px;font-size:9px;letter-spacing:2px;text-transform:uppercase}
+.modal-tag-type{background:var(--navy);color:var(--white)}.modal-tag-badge{background:var(--cream);color:var(--gold);border:1px solid var(--beige)}
+.modal-price{font-family:'Playfair Display',serif;font-size:clamp(28px,3vw,38px);font-weight:700;color:var(--navy);line-height:1}
+.modal-name{font-family:'Playfair Display',serif;font-size:22px;font-style:italic;color:var(--navy-light);margin-top:-8px}
+.modal-location{display:flex;align-items:center;gap:7px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted)}
+.modal-divider{height:1px;background:var(--border-light)}
+.modal-stats{display:flex}
+.modal-stat{flex:1;text-align:center;padding:16px 8px;border-right:1px solid var(--border-light)}
+.modal-stat:last-child{border-right:none}
+.modal-stat-val{font-family:'Playfair Display',serif;font-size:24px;font-weight:600;color:var(--navy)}
+.modal-stat-key{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-top:3px}
+.modal-desc{font-size:14px;font-weight:300;color:var(--text-muted);line-height:1.9}
+.modal-features-title{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--navy);margin-bottom:12px}
+.modal-features-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.modal-feature{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--off-white);border:1px solid var(--border-light);font-size:12px;color:var(--text)}
+.modal-feature-icon{color:var(--gold);font-size:15px}
+.modal-ctas{display:flex;gap:12px;flex-wrap:wrap}
+/* NEARBY */
+.nearby-scroll{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;scrollbar-width:thin;scrollbar-color:var(--beige) transparent}
+.nearby-scroll::-webkit-scrollbar{height:4px}
+.nearby-scroll::-webkit-scrollbar-thumb{background:var(--beige)}
+.nearby-card{flex:0 0 150px;background:var(--off-white);border:1px solid var(--border-light);overflow:hidden;transition:transform .25s,box-shadow .25s}
+.nearby-card:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+.nearby-card-img{height:82px;width:100%;object-fit:cover}
+.nearby-card-body{padding:9px 10px 11px}
+.nearby-card-type{font-size:7.5px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:3px}
+.nearby-card-name{font-family:'Playfair Display',serif;font-size:12px;font-weight:600;color:var(--navy);line-height:1.2;margin-bottom:3px}
+.nearby-card-dist{font-size:10px;color:var(--text-muted);margin-bottom:3px}
+.nearby-card-desc{font-size:10px;color:var(--text-muted);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+/* MAP */
+.modal-map-wrap{border:1px solid var(--border-light);overflow:hidden}
+#modal-map{height:196px;width:100%}
+.leaflet-popup-content-wrapper{border-radius:0!important;font-family:'Jost',sans-serif!important}
+/* CALC */
+.modal-calc{background:var(--off-white);border:1px solid var(--border-light);padding:14px 16px}
+.calc-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.calc-lbl{font-size:11px;color:var(--text-muted);min-width:55px}
+#calc-pct{flex:1;accent-color:var(--gold);cursor:pointer}
+.calc-pct-val{font-size:12px;font-weight:600;color:var(--navy);min-width:32px;text-align:right}
+.calc-result{font-size:12.5px;color:var(--text-muted)}
+.calc-result strong{font-family:'Playfair Display',serif;font-size:17px;font-weight:600;color:var(--navy)}
+.calc-note{font-size:10px;opacity:.7}
+/* AI CHAT */
+.ai-bubble{position:fixed;bottom:28px;right:28px;z-index:8500}
+.ai-chat-btn{width:56px;height:56px;background:var(--navy);border-radius:50%;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;box-shadow:0 6px 28px rgba(12,29,54,.3);position:relative;transition:transform .25s}
+.ai-chat-btn:hover{transform:scale(1.08)}
+.ai-notif{position:absolute;top:-4px;right:-4px;width:18px;height:18px;background:var(--gold);border-radius:50%;font-size:10px;font-weight:700;color:white;display:flex;align-items:center;justify-content:center}
+.ai-panel{position:absolute;bottom:68px;right:0;width:308px;background:var(--white);border:1px solid var(--border-light);box-shadow:var(--shadow-hover);display:none;flex-direction:column;overflow:hidden}
+.ai-panel.open{display:flex}
+.ai-panel-header{background:var(--navy);padding:13px 15px;display:flex;align-items:center;gap:10px}
+.ai-avatar{width:30px;height:30px;background:rgba(255,255,255,.15);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ai-panel-name{font-size:13px;font-weight:600;color:var(--white)}
+.ai-panel-status{font-size:10px;color:rgba(184,146,74,.9)}
+.ai-panel-close{margin-left:auto;background:none;border:none;color:rgba(255,255,255,.6);font-size:16px;cursor:pointer;padding:0 2px}
+.ai-panel-close:hover{color:var(--white)}
+.ai-messages{padding:12px;display:flex;flex-direction:column;gap:9px;max-height:230px;overflow-y:auto;background:var(--off-white)}
+.ai-messages::-webkit-scrollbar{width:3px}
+.ai-msg{display:flex}
+.ai-msg-bubble{max-width:83%;padding:9px 11px;font-size:12px;line-height:1.5;font-weight:300}
+.ai-msg.bot .ai-msg-bubble{background:var(--white);border:1px solid var(--border-light);color:var(--text);border-radius:0 7px 7px 7px}
+.ai-msg.user{justify-content:flex-end}
+.ai-msg.user .ai-msg-bubble{background:var(--navy);color:var(--white);border-radius:7px 0 7px 7px}
+.ai-quickreplies{padding:7px 11px;display:flex;gap:5px;flex-wrap:wrap;border-top:1px solid var(--border-light);border-bottom:1px solid var(--border-light);background:var(--white)}
+.ai-quickreplies button{padding:4px 9px;font-size:10px;border:1px solid var(--border);background:var(--off-white);color:var(--text-muted);cursor:pointer;transition:all .2s}
+.ai-quickreplies button:hover{border-color:var(--gold);color:var(--navy)}
+.ai-input-row{display:flex;background:var(--white)}
+.ai-input-row input{flex:1;border:none;padding:11px 13px;font-family:'Jost',sans-serif;font-size:12.5px;outline:none;color:var(--text)}
+.ai-input-row button{padding:11px 14px;background:var(--navy);border:none;color:var(--white);cursor:pointer;transition:background .2s}
+.ai-input-row button:hover{background:var(--navy-mid)}
+@media(max-width:1100px){
+  #nav{padding:0 30px}
+  .section-wrap,.filters-wrap,#propiedades,#stats,footer{padding-left:30px;padding-right:30px}
+  .props-grid{grid-template-columns:repeat(2,1fr)}
+  .about-inner,#featured,.contact-inner,.footer-grid{grid-template-columns:1fr}
+  .featured-overlay{display:none}.featured-body{padding:50px 30px}
+  .hero-content{left:30px;right:30px;bottom:80px}
+  #modal-box{grid-template-columns:1fr}.modal-gallery{height:50vh}
+}
+@media(max-width:680px){
+  .props-grid{grid-template-columns:1fr}
+  #stats{grid-template-columns:repeat(2,1fr)}
+  .nav-links{display:none}
+  .ai-panel{width:280px}
+}
+</style>
+</head>
+<body>
+
+<nav id="nav">
+  <a href="#" class="nav-logo">
+    <span class="nav-logo-text">Imperium</span>
+    <div class="nav-logo-sep"></div>
+    <span class="nav-logo-sub">Realty · Luxury</span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="#propiedades">Propiedades</a></li>
+    <li><a href="#nosotros">Nosotros</a></li>
+    <li><a href="#contacto">Contacto</a></li>
+  </ul>
+  <button class="nav-cta" onclick="document.getElementById('contacto').scrollIntoView({behavior:'smooth'})">Consulta Privada</button>
+</nav>
+
+<section id="hero">
+  <div class="slide active" data-city="Marbella · Costa del Sol" data-name="Villa Rocamar" data-price="€4.850.000">
+    <img class="slide-img" src="https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=1800&q=85" alt="">
+    <div class="slide-overlay"></div>
+  </div>
+  <div class="slide" data-city="Ibiza · Baleares" data-name="Villa Nordeste" data-price="€7.200.000">
+    <img class="slide-img" src="https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1800&q=85" alt="">
+    <div class="slide-overlay"></div>
+  </div>
+  <div class="slide" data-city="Madrid · Salamanca" data-name="Palacete Recoletos" data-price="€8.900.000">
+    <img class="slide-img" src="https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=1800&q=85" alt="">
+    <div class="slide-overlay"></div>
+  </div>
+  <div class="slide" data-city="Barcelona · Paseo de Gracia" data-name="Penthouse Paseo de Gracia" data-price="€5.200.000">
+    <img class="slide-img" src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1800&q=85" alt="">
+    <div class="slide-overlay"></div>
+  </div>
+  <div class="slide" data-city="Sotogrande · Cádiz" data-name="Villa El Refugio" data-price="€5.500.000">
+    <img class="slide-img" src="https://images.unsplash.com/photo-1605276374104-dee2a0ed3cd6?w=1800&q=85" alt="">
+    <div class="slide-overlay"></div>
+  </div>
+  <div class="hero-content">
+    <div class="hero-text">
+      <div class="hero-city" id="hero-city">Marbella · Costa del Sol</div>
+      <h1 class="hero-name" id="hero-name">Villa Rocamar</h1>
+      <div class="hero-price"><span id="hero-price">€4.850.000</span></div>
+    </div>
+    <div class="hero-actions">
+      <button class="hero-btn-main" onclick="document.getElementById('propiedades').scrollIntoView({behavior:'smooth'})">Ver Propiedades</button>
+      <button class="hero-btn-sec" onclick="document.getElementById('contacto').scrollIntoView({behavior:'smooth'})">Contactar Ahora</button>
+    </div>
+  </div>
+  <button class="carousel-arrow arrow-prev" onclick="changeSlide(-1)">&#8592;</button>
+  <button class="carousel-arrow arrow-next" onclick="changeSlide(1)">&#8594;</button>
+  <div class="carousel-dots" id="carousel-dots"></div>
+  <div class="hero-scroll"><div class="scroll-line"></div><span>Scroll</span></div>
+  <div class="slide-count"><span class="count-current" id="count-current">01</span><span>—</span><span>05</span></div>
+</section>
+
+<div class="filters-wrap">
+  <div class="filters-inner">
+    <div class="type-tabs">
+      <button class="type-tab active" onclick="filterType('todas',this)">Todas</button>
+      <button class="type-tab" onclick="filterType('Villa',this)">Villas</button>
+      <button class="type-tab" onclick="filterType('Ático',this)">Áticos</button>
+      <button class="type-tab" onclick="filterType('Finca',this)">Fincas</button>
+      <button class="type-tab" onclick="filterType('Chalet',this)">Chalets</button>
+    </div>
+    <div class="filter-selects">
+      <select class="filter-select" id="filter-city" onchange="filterAll()">
+        <option value="">Todas las ciudades</option>
+        <option>Marbella</option><option>Barcelona</option><option>Madrid</option><option>Ibiza</option>
+        <option>Mallorca</option><option>Sotogrande</option><option>Sevilla</option><option>Menorca</option>
+        <option>Valencia</option><option>Girona</option><option>Toledo</option><option>Granada</option>
+      </select>
+      <select class="filter-select" id="filter-price" onchange="filterAll()">
+        <option value="">Cualquier precio</option>
+        <option value="1">Hasta €2M</option><option value="2">€2M – €4M</option>
+        <option value="3">€4M – €6M</option><option value="4">Más de €6M</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<section id="propiedades">
+  <div class="section-header reveal">
+    <div class="eyebrow">Cartera Seleccionada</div>
+    <h2 class="section-title">Residencias de<br><em>Excepción</em></h2>
+  </div>
+  <div class="props-grid" id="props-grid"></div>
+</section>
+
+<div id="stats">
+  <div class="stat"><div class="stat-num" data-target="27">0</div><div class="stat-label">Años de experiencia</div></div>
+  <div class="stat"><div class="stat-num" data-target="920">0</div><div class="stat-label">Propiedades vendidas</div></div>
+  <div class="stat"><div class="stat-num" data-target="680">0</div><div class="stat-label">Clientes satisfechos</div></div>
+  <div class="stat"><div class="stat-num" data-target="21">0</div><div class="stat-label">Países de compradores</div></div>
+</div>
+
+<section id="featured">
+  <div class="featured-img">
+    <img src="https://images.unsplash.com/photo-1600607687939-ce8a6d349a58?w=1200&q=85" alt="Villa Cielomar">
+    <div class="featured-overlay"></div>
+  </div>
+  <div class="featured-body">
+    <div class="eyebrow">Propiedad Estrella</div>
+    <div class="featured-price-big">€6.100.000</div>
+    <div class="featured-name">Villa Cielomar — Mallorca</div>
+    <p class="featured-desc">Impresionante villa contemporánea en la costa norte de Mallorca, con vistas privilegiadas al Mediterráneo desde cada estancia. Diseñada por el reconocido arquitecto Rafael Moneo Jr., combina piedra mallorquina, madera de teca y cristal en una simbiosis perfecta de tradición y vanguardia.</p>
+    <div class="featured-specs">
+      <div class="fspec"><span class="fspec-val">720</span><span class="fspec-key">m² Constr.</span></div>
+      <div class="fspec"><span class="fspec-val">7</span><span class="fspec-key">Dormit.</span></div>
+      <div class="fspec"><span class="fspec-val">7</span><span class="fspec-key">Baños</span></div>
+      <div class="fspec"><span class="fspec-val">3.200</span><span class="fspec-key">m² Parcela</span></div>
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      <button class="btn-navy" onclick="openModal(11)">Ver Propiedad &#8594;</button>
+      <button class="btn-outline" onclick="document.getElementById('contacto').scrollIntoView({behavior:'smooth'})">Solicitar Info</button>
+    </div>
+  </div>
+</section>
+
+<section id="nosotros" class="section-wrap">
+  <div class="about-inner">
+    <div class="about-imgs reveal">
+      <div class="about-main"><img src="https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=900&q=85" alt=""></div>
+      <div class="about-sec"><img src="https://images.unsplash.com/photo-1497366216548-37526070297c?w=600&q=85" alt=""></div>
+      <div class="about-years"><span class="about-years-num">#1</span><span class="about-years-txt">Lujo<br>España</span></div>
+    </div>
+    <div class="about-text reveal" style="transition-delay:.2s">
+      <div class="eyebrow">Nuestra Historia</div>
+      <h2 class="section-title">Confianza que<br><em>se construye</em></h2>
+      <p class="section-desc" style="margin:20px 0">Fundada en 1999 en Madrid, Imperium Realty nació con una misión inequívoca: ofrecer el más alto nivel de asesoría inmobiliaria a quienes buscan propiedades verdaderamente excepcionales. Hoy operamos en los mercados más exclusivos de España con un equipo de 45 especialistas.</p>
+      <p class="section-desc" style="margin-bottom:36px">Gestionamos el patrimonio inmobiliario de familias distinguidas, empresarios internacionales y family offices de toda Europa, con una discreción y atención al detalle sin igual.</p>
+      <div style="display:flex;gap:40px;margin-bottom:36px">
+        <div><div style="font-family:'Playfair Display',serif;font-size:38px;font-weight:700;color:var(--navy)">€3.2B</div><div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gold)">En transacciones</div></div>
+        <div><div style="font-family:'Playfair Display',serif;font-size:38px;font-weight:700;color:var(--navy)">5</div><div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gold)">Oficinas en España</div></div>
+        <div><div style="font-family:'Playfair Display',serif;font-size:38px;font-weight:700;color:var(--navy)">45+</div><div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gold)">Especialistas</div></div>
+      </div>
+      <div class="signature">Alejandro Imperium</div>
+      <div class="sign-role">Fundador &amp; CEO</div>
+    </div>
+  </div>
+</section>
+
+<section id="contacto" class="section-wrap">
+  <div class="contact-inner">
+    <div>
+      <div class="eyebrow">Estamos aquí</div>
+      <h2 class="section-title" style="margin-bottom:20px">Hablemos de<br><em>su propiedad</em></h2>
+      <p class="section-desc" style="margin-bottom:40px">Consulta privada y sin compromiso. Nuestros asesores atienden de lunes a sábado de 9:00 a 20:00h.</p>
+      <div class="contact-info">
+        <div class="contact-item">
+          <div class="contact-icon"><svg width="18" height="18" fill="none" stroke="var(--gold)" stroke-width="1.5" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2A19.79 19.79 0 013.07 8.63 19.79 19.79 0 012 4a2 2 0 012-2h3a2 2 0 012 1.72c.128.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg></div>
+          <div><div class="contact-item-label">Teléfono</div><div class="contact-item-val">+34 915 234 000</div><div class="contact-item-sub">Madrid · Marbella · Ibiza · Barcelona · Mallorca</div></div>
+        </div>
+        <div class="contact-item">
+          <div class="contact-icon"><svg width="18" height="18" fill="none" stroke="var(--gold)" stroke-width="1.5" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg></div>
+          <div><div class="contact-item-label">Email</div><div class="contact-item-val">info@imperiumrealty.es</div><div class="contact-item-sub">Respuesta en menos de 2 horas</div></div>
+        </div>
+        <div class="contact-item">
+          <div class="contact-icon"><svg width="18" height="18" fill="none" stroke="var(--gold)" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg></div>
+          <div><div class="contact-item-label">Oficina Principal</div><div class="contact-item-val">Calle Serrano 89, Madrid 28006</div><div class="contact-item-sub">+ 4 oficinas en Marbella, Ibiza, Barcelona y Mallorca</div></div>
+        </div>
+        <a href="https://wa.me/34915234000" style="display:inline-flex;align-items:center;gap:10px;background:#25D366;color:white;padding:13px 24px;font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;width:fit-content">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+          WhatsApp
+        </a>
+      </div>
+    </div>
+    <form class="contact-form" onsubmit="return false">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" placeholder="Su nombre completo"></div>
+        <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" placeholder="su@email.com"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Teléfono</label><input type="tel" class="form-input" placeholder="+34 6XX XXX XXX"></div>
+        <div class="form-group"><label class="form-label">Presupuesto</label><select class="form-select-full form-input"><option>€1M – €3M</option><option>€3M – €6M</option><option>€6M – €12M</option><option>+€12M</option></select></div>
+      </div>
+      <div class="form-group"><label class="form-label">Mensaje</label><textarea class="form-textarea" placeholder="Cuéntenos qué propiedad busca..."></textarea></div>
+      <button type="submit" class="btn-navy" style="width:100%;justify-content:center;padding:16px">Enviar Consulta Privada</button>
+    </form>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-grid">
+    <div>
+      <div class="footer-logo-text">Imperium</div>
+      <div class="footer-tagline">Realty · Luxury Real Estate</div>
+      <p class="footer-desc">Especialistas en propiedades de lujo en España desde 1999.</p>
+      <div class="footer-social" style="margin-top:24px">
+        <a href="#" class="social-link">in</a><a href="#" class="social-link">ig</a><a href="#" class="social-link">fb</a><a href="#" class="social-link">yt</a>
+      </div>
+    </div>
+    <div><div class="footer-col-title">Propiedades</div><ul class="footer-links"><li><a href="#">Villas &amp; Chalets</a></li><li><a href="#">Áticos &amp; Penthouses</a></li><li><a href="#">Fincas &amp; Cortijos</a></li><li><a href="#">Obra Nueva</a></li></ul></div>
+    <div><div class="footer-col-title">Destinos</div><ul class="footer-links"><li><a href="#">Madrid</a></li><li><a href="#">Marbella · Golden Mile</a></li><li><a href="#">Ibiza · Baleares</a></li><li><a href="#">Barcelona</a></li><li><a href="#">Mallorca</a></li></ul></div>
+    <div><div class="footer-col-title">Contacto</div><ul class="footer-links"><li><a href="#">+34 915 234 000</a></li><li><a href="#">info@imperiumrealty.es</a></li><li><a href="#">Calle Serrano 89, Madrid</a></li><li><a href="#">Lun–Sáb: 9:00–20:00h</a></li></ul></div>
+  </div>
+  <div class="footer-bottom">
+    <p>© 2026 <span>Imperium Realty S.L.</span> — Todos los derechos reservados · Uso Demostrativo</p>
+    <p>Aviso Legal · Privacidad · Cookies</p>
+  </div>
+</footer>
+
+<!-- MODAL -->
+<div id="modal-overlay" onclick="handleOverlayClick(event)">
+  <div id="modal-box">
+    <div class="modal-gallery">
+      <div class="modal-main-img"><img id="modal-main-img" src="" alt=""></div>
+      <div class="modal-thumbs" id="modal-thumbs"></div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-tags" id="modal-tags"></div>
+      <div>
+        <div class="modal-price" id="modal-price"></div>
+        <div class="modal-name" id="modal-name"></div>
+      </div>
+      <div class="modal-location">
+        <svg width="12" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+        <span id="modal-city"></span>
+      </div>
+      <div class="modal-divider"></div>
+      <div class="modal-stats" id="modal-stats"></div>
+      <div class="modal-divider"></div>
+      <p class="modal-desc" id="modal-desc"></p>
+      <div>
+        <div class="modal-features-title">Características Premium</div>
+        <div class="modal-features-grid" id="modal-features"></div>
+      </div>
+      <div class="modal-divider"></div>
+      <div>
+        <div class="modal-features-title">Entorno &amp; Servicios Cercanos</div>
+        <div class="nearby-scroll" id="modal-nearby"></div>
+      </div>
+      <div class="modal-divider"></div>
+      <div>
+        <div class="modal-features-title">Ubicación Exacta</div>
+        <div class="modal-map-wrap"><div id="modal-map"></div></div>
+      </div>
+      <div class="modal-divider"></div>
+      <div class="modal-calc">
+        <div class="modal-features-title">Calculadora de Hipoteca</div>
+        <div class="calc-row">
+          <span class="calc-lbl">Entrada</span>
+          <input type="range" id="calc-pct" min="10" max="50" value="30" step="5">
+          <span class="calc-pct-val" id="calc-pct-label">30%</span>
+        </div>
+        <div class="calc-result">Cuota est. <span class="calc-note">(30 años · 3.5% TAE)</span>: <strong id="calc-payment">—</strong>/mes</div>
+      </div>
+      <div class="modal-ctas">
+        <button class="btn-navy" onclick="closeModal()">Solicitar Visita &#8594;</button>
+        <button class="btn-outline" onclick="document.getElementById('contacto').scrollIntoView({behavior:'smooth'});closeModal()">Descargar Dossier</button>
+        <a class="btn-wa" id="modal-wa-btn" href="#" target="_blank">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          Consultar por WhatsApp
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AI CHAT -->
+<div class="ai-bubble">
+  <div class="ai-panel" id="ai-panel">
+    <div class="ai-panel-header">
+      <div class="ai-avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
+      <div><div class="ai-panel-name">Asistente Imperium</div><div class="ai-panel-status">● En línea · IA disponible 24h</div></div>
+      <button class="ai-panel-close" onclick="toggleChat()">✕</button>
+    </div>
+    <div class="ai-messages" id="ai-messages">
+      <div class="ai-msg bot"><div class="ai-msg-bubble">Hola, soy el asistente de Imperium Realty. ¿En qué puedo ayudarle? Puedo informarle sobre nuestras propiedades, organizar visitas o resolver cualquier consulta.</div></div>
+    </div>
+    <div class="ai-quickreplies">
+      <button onclick="aiQuick('Villas en Marbella')">Marbella</button>
+      <button onclick="aiQuick('Proceso de compra')">Proceso compra</button>
+      <button onclick="aiQuick('Quiero una visita privada')">Visita</button>
+    </div>
+    <div class="ai-input-row">
+      <input type="text" id="ai-input" placeholder="Escriba su consulta..." onkeydown="if(event.key==='Enter')aiSend()">
+      <button onclick="aiSend()">➤</button>
+    </div>
+  </div>
+  <button class="ai-chat-btn" onclick="toggleChat()">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+    <div class="ai-notif" id="ai-notif">1</div>
+  </button>
+</div>
+
+<script>
+const PROPS=[
+  {id:0,name:"Villa Rocamar",city:"Marbella",type:"Villa",badge:"Exclusiva",price:4850000,priceLabel:"€4.850.000",beds:6,baths:6,m2:580,plot:2400,
+   coords:[36.5101,-4.8826],
+   nearby:[
+    {name:"Puerto Banús",type:"Puerto Deportivo",dist:"4 km",img:"photo-1504280390367-361c6d9f38f4",desc:"El puerto más glamuroso de Europa, con yates de lujo y boutiques exclusivas."},
+    {name:"Club de Golf Aloha",type:"Golf & Country Club",dist:"2 km",img:"photo-1587174486073-ae5e5cff23aa",desc:"Campo de golf diseñado por Javier Arana, uno de los mejores de Europa."},
+    {name:"Playa Fontanilla",type:"Playa Bandera Azul",dist:"1.5 km",img:"photo-1507525428034-b723cf961d3e",desc:"Extensa playa premiada con todos los servicios y chiringuitos de calidad."},
+    {name:"Casco Histórico",type:"Centro Urbano",dist:"3 km",img:"photo-1565799557186-9e36e2b0b393",desc:"Plaza de los Naranjos, boutiques exclusivas y gastronomía de autor."}
+   ],
+   desc:"Espectacular villa de nueva construcción en la prestigiosa Urbanización Rocamar, con vistas panorámicas al Mediterráneo. Arquitectura contemporánea de vanguardia con acabados de la más alta gama: mármol de Carrara, madera de roble, domótica integral y amplias terrazas.",
+   features:["Piscina Infinity","Pista de Pádel","Sala de Cine","Bodega Climatizada","Garaje 4 Coches","Seguridad 24h","Domótica Crestron","Spa Privado"],
+   images:["https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=1200&q=85","https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1200&q=85","https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1200&q=85","https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=1200&q=85"]},
+  {id:1,name:"Penthouse Paseo de Gracia",city:"Barcelona",type:"Ático",badge:"Nueva",price:5200000,priceLabel:"€5.200.000",beds:4,baths:4,m2:380,plot:0,
+   coords:[41.3916,2.1641],
+   nearby:[
+    {name:"La Pedrera",type:"Patrimonio UNESCO",dist:"200 m",img:"photo-1562184552-997c461abbe6",desc:"Obra maestra de Gaudí, a pasos del ático."},
+    {name:"Mercat de la Boqueria",type:"Mercado Gourmet",dist:"1.2 km",img:"photo-1555396273-367ea4eb4db5",desc:"El mercado más famoso de Barcelona con productos gourmet únicos."},
+    {name:"Parque de la Ciudadela",type:"Parque Urbano",dist:"1.8 km",img:"photo-1441974231531-c6227db76b6e",desc:"Pulmón verde de Barcelona con lago y ambiente exclusivo."},
+    {name:"Aeropuerto El Prat",type:"Hub Internacional",dist:"18 km",img:"photo-1436491865332-7a61a109cc05",desc:"Vuelos directos a todas las capitales europeas."}
+   ],
+   desc:"Extraordinario ático en el corazón del Paseo de Gracia. Vistas a 360° sobre Barcelona, terraza privada con piscina desbordante y diseño de interiores firmado por Patricia Urquiola.",
+   features:["Piscina Privada","Terraza 200m²","Gym Privado","Vistas 360°","Domótica B&O","Ascensor Privado","Valet Parking","Concierge 24h"],
+   images:["https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1200&q=85","https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200&q=85","https://images.unsplash.com/photo-1600607687939-ce8a6d349a58?w=1200&q=85","https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=1200&q=85"]},
+  {id:2,name:"Cortijo El Olivo",city:"Sevilla",type:"Finca",badge:"Exclusiva",price:3400000,priceLabel:"€3.400.000",beds:7,baths:5,m2:820,plot:15000,
+   coords:[37.3891,-5.9845],
+   nearby:[
+    {name:"Catedral de Sevilla",type:"Patrimonio UNESCO",dist:"18 km",img:"photo-1490810194309-344b3661ba39",desc:"La catedral gótica más grande del mundo."},
+    {name:"Parque María Luisa",type:"Parque Histórico",dist:"16 km",img:"photo-1441974231531-c6227db76b6e",desc:"El parque más importante de Sevilla, escenario de la Expo de 1929."},
+    {name:"Aeropuerto de Sevilla",type:"Conexión Internacional",dist:"12 km",img:"photo-1436491865332-7a61a109cc05",desc:"Conexiones directas a toda Europa e internacional."},
+    {name:"Centro Histórico",type:"Casco Antiguo",dist:"18 km",img:"photo-1565799557186-9e36e2b0b393",desc:"El casco histórico más grande de Europa tras Venecia y Génova."}
+   ],
+   desc:"Cortijo andaluz del s. XVIII completamente restaurado. 15 hectáreas de olivar centenario, piscina exterior, capilla privada y caballerizas rehabilitadas. Una joya del patrimonio histórico.",
+   features:["Capilla Privada","Caballerizas","Olivar 15ha","Piscina Exterior","Pozo Artesiano","Generador","Bodega Histórica","Alojamiento Personal"],
+   images:["https://images.unsplash.com/photo-1575517111839-3a3843ee7f5d?w=1200&q=85","https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=1200&q=85","https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=1200&q=85","https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1200&q=85"]},
+  {id:3,name:"Villa Nordeste",city:"Ibiza",type:"Villa",badge:"Exclusiva",price:7200000,priceLabel:"€7.200.000",beds:7,baths:7,m2:750,plot:3800,
+   coords:[39.020,1.460],
+   nearby:[
+    {name:"Dalt Vila",type:"Ciudad UNESCO",dist:"9 km",img:"photo-1557268046-6a81f7da5067",desc:"La ciudad amurallada de Ibiza, Patrimonio de la Humanidad."},
+    {name:"Puerto de Ibiza",type:"Marina de Lujo",dist:"9 km",img:"photo-1504280390367-361c6d9f38f4",desc:"Marina de clase mundial con superyates."},
+    {name:"Playa Es Figueral",type:"Playa Virgen",dist:"2 km",img:"photo-1507525428034-b723cf961d3e",desc:"Una de las playas más vírgenes del norte de Ibiza."},
+    {name:"Aeropuerto de Ibiza",type:"Vuelos Privados",dist:"22 km",img:"photo-1436491865332-7a61a109cc05",desc:"Excelentes conexiones con Europa y vuelos privados."}
+   ],
+   desc:"Villa ibicenca contemporánea con vistas al mar desde todas las estancias. Cala privada a 300m, piscina desbordante con pool bar, jardines mediterráneos y terraza-solarium de 400m².",
+   features:["Cala Privada 300m","Piscina Pool Bar","Helipuerto","Terraza 400m²","SPA & Hammam","Sala VIP","Cinema Exterior","Garaje 6 Coches"],
+   images:["https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1200&q=85","https://images.unsplash.com/photo-1605276374104-dee2a0ed3cd6?w=1200&q=85","https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=1200&q=85","https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1200&q=85"]},
+  {id:4,name:"Palacete Recoletos",city:"Madrid",type:"Ático",badge:"Nueva",price:8900000,priceLabel:"€8.900.000",beds:5,baths:6,m2:460,plot:0,
+   coords:[40.4200,-3.6880],
+   nearby:[
+    {name:"Parque del Retiro",type:"Patrimonio UNESCO",dist:"600 m",img:"photo-1441974231531-c6227db76b6e",desc:"El pulmón verde de Madrid, declarado Patrimonio Mundial en 2021."},
+    {name:"Museo del Prado",type:"Museo de Arte",dist:"900 m",img:"photo-1518998053901-5348d3961a04",desc:"Uno de los museos de arte más importantes del mundo."},
+    {name:"Mercado de La Paz",type:"Mercado Gourmet",dist:"300 m",img:"photo-1555396273-367ea4eb4db5",desc:"El mercado más exclusivo de Madrid, en pleno Salamanca."},
+    {name:"Aeropuerto Barajas",type:"Hub Internacional",dist:"16 km",img:"photo-1436491865332-7a61a109cc05",desc:"Cuarto aeropuerto más grande de Europa."}
+   ],
+   desc:"Palacete histórico del barrio de Recoletos convertido en exclusiva residencia privada. Techos originales de 4m, suelos de parqué Versalles y jardín privado de 300m².",
+   features:["Jardín Privado 300m²","Techos 4m","Molduras Originales","Bodega 800 bot.","Sala de Música","Estudio Privado","Garaje Privado","Servicio 24h"],
+   images:["https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=1200&q=85","https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=1200&q=85","https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200&q=85","https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?w=1200&q=85"]},
+  {id:5,name:"Villa Tramontana",city:"Menorca",type:"Villa",badge:"",price:2950000,priceLabel:"€2.950.000",beds:5,baths:4,m2:420,plot:5200,
+   coords:[40.038,3.830],
+   nearby:[
+    {name:"Ciudadela de Menorca",type:"Ciudad Histórica",dist:"25 km",img:"photo-1565799557186-9e36e2b0b393",desc:"La antigua capital de Menorca con casco histórico impresionante."},
+    {name:"Playa de Son Bou",type:"Playa Virgen",dist:"20 km",img:"photo-1507525428034-b723cf961d3e",desc:"La playa más larga de Menorca, de aguas turquesas y arena blanca."},
+    {name:"Aeropuerto de Menorca",type:"Vuelos Directos",dist:"8 km",img:"photo-1436491865332-7a61a109cc05",desc:"Excelentes conexiones con las principales ciudades europeas."},
+    {name:"Puerto de Mahón",type:"Puerto Natural",dist:"10 km",img:"photo-1504280390367-361c6d9f38f4",desc:"El segundo puerto natural más largo del mundo."}
+   ],
+   desc:"Villa mediterránea con vistas a la bahía de Mahón. Piscina de agua salada, jacuzzi exterior y acceso privado a calas vírgenes. Refugio de paz a 15 minutos del aeropuerto.",
+   features:["Piscina Agua Salada","Jacuzzi Exterior","Acceso Calas Privadas","Pinares","Huerto Ecológico","Generador Solar","Garaje 3 Coches","Embarcadero"],
+   images:["https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=1200&q=85","https://images.unsplash.com/photo-1575517111839-3a3843ee7f5d?w=1200&q=85","https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=1200&q=85","https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1200&q=85"]},
+  {id:6,name:"Casa Beltrana",city:"Valencia",type:"Chalet",badge:"Reducida",price:1800000,priceLabel:"€1.800.000",beds:4,baths:4,m2:380,plot:1800,
+   coords:[39.480,-0.350],
+   nearby:[
+    {name:"Club de Golf El Saler",type:"Golf de Campeonato",dist:"5 km",img:"photo-1587174486073-ae5e5cff23aa",desc:"Campo de golf de campeonato entre pinares y la Albufera."},
+    {name:"Ciudad de las Artes",type:"Complejo Cultural",dist:"10 km",img:"photo-1518998053901-5348d3961a04",desc:"Icónico conjunto de Santiago Calatrava."},
+    {name:"Playa Malvarrosa",type:"Playa Urbana",dist:"12 km",img:"photo-1507525428034-b723cf961d3e",desc:"La playa más popular de Valencia con amplios paseos."},
+    {name:"Aeropuerto Valencia",type:"Vuelos Directos",dist:"14 km",img:"photo-1436491865332-7a61a109cc05",desc:"Vuelos directos a más de 70 destinos europeos."}
+   ],
+   desc:"Elegante chalet modernista en la exclusiva urbanización La Cañada, rodeado de naranjos. Piscina climatizada, jardín de 1.800m² con barbacoa y sauna exterior.",
+   features:["Piscina Climatizada","Sauna Exterior","Golf 5 min","Naranjos Propios","Garaje 3 Coches","Jacuzzi","Barbacoa Exterior","Alarma Perimetral"],
+   images:["https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=1200&q=85","https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=1200&q=85","https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=1200&q=85","https://images.unsplash.com/photo-1575517111839-3a3843ee7f5d?w=1200&q=85"]},
+  {id:7,name:"Chalet Sierra Blanca",city:"Granada",type:"Chalet",badge:"",price:1650000,priceLabel:"€1.650.000",beds:5,baths:4,m2:460,plot:2200,
+   coords:[37.177,-3.594],
+   nearby:[
+    {name:"La Alhambra",type:"Patrimonio UNESCO",dist:"15 km",img:"photo-1557268046-6a81f7da5067",desc:"El monumento más visitado de España, joya del arte nazarí."},
+    {name:"Sierra Nevada",type:"Estación de Esquí",dist:"25 km",img:"photo-1551698618-1dfe5d97d256",desc:"La estación de esquí más al sur de Europa."},
+    {name:"Aeropuerto Granada",type:"Conexión Nacional",dist:"20 km",img:"photo-1436491865332-7a61a109cc05",desc:"Vuelos directos a Madrid, Barcelona y ciudades europeas."},
+    {name:"Centro Histórico",type:"Casco Antiguo",dist:"14 km",img:"photo-1565799557186-9e36e2b0b393",desc:"El histórico Albaicín y el flamenco del Sacromonte."}
+   ],
+   desc:"Chalet de montaña con vistas a Sierra Nevada. Materiales nobles: piedra local, pino silvestre, hierro forjado. Piscina cubierta, sauna y sala de esquí a 10 minutos de las pistas.",
+   features:["Vista Sierra Nevada","Piscina Cubierta","Sala de Esquí","Sauna","Bodega","Garaje 2 Coches","Chimeneas","Zona SPA"],
+   images:["https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?w=1200&q=85","https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=1200&q=85","https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=1200&q=85","https://images.unsplash.com/photo-1575517111839-3a3843ee7f5d?w=1200&q=85"]},
+  {id:8,name:"Masía Can Rosell",city:"Girona",type:"Finca",badge:"Nueva",price:2100000,priceLabel:"€2.100.000",beds:6,baths:5,m2:640,plot:8500,
+   coords:[41.985,2.822],
+   nearby:[
+    {name:"Costa Brava",type:"Costa Mediterránea",dist:"20 km",img:"photo-1507525428034-b723cf961d3e",desc:"La costa más espectacular de Cataluña."},
+    {name:"Girona Medieval",type:"Ciudad Histórica",dist:"10 km",img:"photo-1565799557186-9e36e2b0b393",desc:"Ciudad medieval con barrio judío intacto y murallas romanas."},
+    {name:"Aeropuerto Girona",type:"Vuelos Europeos",dist:"8 km",img:"photo-1436491865332-7a61a109cc05",desc:"Excelentes conexiones con toda Europa y aviación privada."},
+    {name:"Teatro Dalí Figueres",type:"Museo Único",dist:"30 km",img:"photo-1518998053901-5348d3961a04",desc:"El teatro-museo más visitado de España."}
+   ],
+   desc:"Masía catalana del s. XVII rehabilitada con criterios de lujo contemporáneo. Viñedo propio de 4ha, piscina infinity, bodega para 2.000 botellas y casa de invitados.",
+   features:["Viñedo 4ha","Bodega 2.000 bot.","Casa Invitados","Helipad","Piscina Infinity","Frutales","Pozo Propio","Panel Solar"],
+   images:["https://images.unsplash.com/photo-1592595896551-12b371d546d5?w=1200&q=85","https://images.unsplash.com/photo-1575517111839-3a3843ee7f5d?w=1200&q=85","https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=1200&q=85","https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=1200&q=85"]},
+  {id:9,name:"Villa El Refugio",city:"Sotogrande",type:"Villa",badge:"Exclusiva",price:5500000,priceLabel:"€5.500.000",beds:7,baths:7,m2:960,plot:4500,
+   coords:[36.272,-5.262],
+   nearby:[
+    {name:"Golf La Reserva",type:"Campo de Golf Privado",dist:"Adyacente",img:"photo-1587174486073-ae5e5cff23aa",desc:"Considerado el mejor campo de golf de España."},
+    {name:"Puerto Sotogrande",type:"Marina de Lujo",dist:"5 km",img:"photo-1504280390367-361c6d9f38f4",desc:"Marina exclusiva con servicios náuticos de primer nivel."},
+    {name:"Gibraltar",type:"Territorio Británico",dist:"20 km",img:"photo-1477959858617-67f85cf4f1df",desc:"El Peñón de Gibraltar con aeropuerto y zona franca."},
+    {name:"Tarifa",type:"Ciudad Cosmopolita",dist:"30 km",img:"photo-1507525428034-b723cf961d3e",desc:"Capital mundial del surf y kitesurf con ambiente internacional."}
+   ],
+   desc:"Villa majestuosa en Sotogrande Alto con acceso directo al campo de golf. Arquitectura neo-andaluza, 4 suites principales, salón de recepciones de 200m² y vistas al Estrecho.",
+   features:["Golf Directo","Sala Recepciones 200m²","Piscina + Hidroterapia","Vistas Gibraltar","4 Suites Premium","Estudio","Garaje 5 Coches","Servicio Personal"],
+   images:["https://images.unsplash.com/photo-1605276374104-dee2a0ed3cd6?w=1200&q=85","https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=1200&q=85","https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1200&q=85","https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=1200&q=85"]},
+  {id:10,name:"Palacio de los Arcos",city:"Toledo",type:"Finca",badge:"",price:3800000,priceLabel:"€3.800.000",beds:9,baths:7,m2:1100,plot:6200,
+   coords:[39.858,-4.024],
+   nearby:[
+    {name:"Catedral de Toledo",type:"Catedral Primada",dist:"200 m",img:"photo-1490810194309-344b3661ba39",desc:"La Catedral Primada de España, joya del gótico del s.XIII."},
+    {name:"Casco Histórico",type:"Patrimonio UNESCO",dist:"En el casco",img:"photo-1557268046-6a81f7da5067",desc:"Toledo, Patrimonio de la Humanidad, la ciudad de las tres culturas."},
+    {name:"Madrid",type:"Capital Nacional",dist:"70 km",img:"photo-1477959858617-67f85cf4f1df",desc:"A 30 minutos en AVE o 45 minutos en coche."},
+    {name:"Museo del Greco",type:"Museo de Arte",dist:"500 m",img:"photo-1518998053901-5348d3961a04",desc:"Casa-museo con obras originales del pintor El Greco."}
+   ],
+   desc:"Palacio renacentista del s. XVI en el casco histórico de Toledo. Patio central con fuente original, artesonados mudéjares, capilla privada y jardín amurallado de 6.200m².",
+   features:["Patio Renacentista","Capilla Privada","Artesonados s.XVI","Fuente Original","Jardín Amurallado","Cripta","Bodega Histórica","Vista Catedral"],
+   images:["https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=1200&q=85","https://images.unsplash.com/photo-1575517111839-3a3843ee7f5d?w=1200&q=85","https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=1200&q=85","https://images.unsplash.com/photo-1592595896551-12b371d546d5?w=1200&q=85"]},
+  {id:11,name:"Villa Cielomar",city:"Mallorca",type:"Villa",badge:"Exclusiva",price:6100000,priceLabel:"€6.100.000",beds:7,baths:7,m2:720,plot:3200,
+   coords:[39.943,3.098],
+   nearby:[
+    {name:"Puerto de Pollença",type:"Marina Mediterránea",dist:"15 km",img:"photo-1504280390367-361c6d9f38f4",desc:"Encantadora marina con restaurantes de pescado y ambiente exclusivo."},
+    {name:"Cap de Formentor",type:"Paraje Natural",dist:"10 km",img:"photo-1507525428034-b723cf961d3e",desc:"El mirador más impresionante de Mallorca."},
+    {name:"Serra de Tramuntana",type:"Patrimonio UNESCO",dist:"5 km",img:"photo-1441974231531-c6227db76b6e",desc:"Cordillera declarada Patrimonio de la Humanidad."},
+    {name:"Aeropuerto de Palma",type:"Hub Internacional",dist:"70 km",img:"photo-1436491865332-7a61a109cc05",desc:"El cuarto aeropuerto más transitado de España."}
+   ],
+   desc:"Villa contemporánea en la costa norte de Mallorca con vistas al Mediterráneo desde cada estancia. Diseñada por Rafael Moneo Jr., combina piedra mallorquina, madera de teca y cristal.",
+   features:["Vista Mar 180°","Piscina Desbordante","SPA Completo","Sala Cine","Cocina Gourmet","Bodega Premium","Helipuerto","Muelle Privado"],
+   images:["https://images.unsplash.com/photo-1600607687939-ce8a6d349a58?w=1200&q=85","https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=1200&q=85","https://images.unsplash.com/photo-1605276374104-dee2a0ed3cd6?w=1200&q=85","https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1200&q=85"]}
+];
+
+const WA_NUMBER='15551964558'; // numero del bot — cambiar por el real en produccion
+function waLink(p){
+  const msg=encodeURIComponent(`Hola! Me interesa la propiedad "${p.name}" en ${p.city} (${p.priceLabel}). Me puedes dar más info?`);
+  return `https://wa.me/${WA_NUMBER}?text=${msg}`;
+}
+
+function renderCards(list){
+  const g=document.getElementById('props-grid');g.innerHTML='';
+  list.forEach((p,i)=>{
+    const bc=p.badge==='Exclusiva'?'badge-exclusiva':p.badge==='Nueva'?'badge-nueva':p.badge==='Reducida'?'badge-reducida':'';
+    const c=document.createElement('div');c.className='prop-card reveal';c.style.transitionDelay=(i%3)*0.1+'s';
+    c.innerHTML=`<div class="card-img-wrap">
+      <img class="card-img" src="${p.images[0]}" alt="${p.name}" loading="lazy">
+      ${p.badge?`<span class="card-badge ${bc}">${p.badge}</span>`:''}
+      <button class="card-fav" onclick="event.stopPropagation();this.classList.toggle('active');this.textContent=this.classList.contains('active')?'♥':'♡'">♡</button>
+      <div class="card-overlay"><button class="card-overlay-btn">Ver Propiedad</button></div>
+    </div>
+    <div class="card-body">
+      <div class="card-location"><svg width="10" height="12" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>${p.city}</div>
+      <div class="card-name">${p.name}</div>
+      <div class="card-price"><strong>${p.priceLabel}</strong></div>
+      <div class="card-specs">
+        <div class="card-spec"><span class="spec-val">${p.beds}</span><span class="spec-key">Dormit.</span></div>
+        <div class="card-spec"><span class="spec-val">${p.baths}</span><span class="spec-key">Baños</span></div>
+        <div class="card-spec"><span class="spec-val">${p.m2}</span><span class="spec-key">m²</span></div>
+        ${p.plot?`<div class="card-spec"><span class="spec-val">${p.plot}</span><span class="spec-key">m² Parc.</span></div>`:''}
+      </div>
+      <a class="card-wa" href="${waLink(p)}" target="_blank" onclick="event.stopPropagation()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+        Preguntar por WhatsApp
+      </a>
+    </div>`;
+    c.addEventListener('click',()=>openModal(p.id));g.appendChild(c);
+  });
+  document.querySelectorAll('.prop-card.reveal').forEach(el=>revealObs.observe(el));
+  apply3DTilt();
+}
+
+let activeType='todas';
+function filterType(t,btn){activeType=t;document.querySelectorAll('.type-tab').forEach(x=>x.classList.remove('active'));btn.classList.add('active');filterAll()}
+function filterAll(){
+  const c=document.getElementById('filter-city').value,pr=document.getElementById('filter-price').value;
+  renderCards(PROPS.filter(p=>{
+    const tOk=activeType==='todas'||p.type===activeType,cOk=!c||p.city===c;
+    let pOk=true;
+    if(pr==='1')pOk=p.price<=2e6;else if(pr==='2')pOk=p.price>2e6&&p.price<=4e6;
+    else if(pr==='3')pOk=p.price>4e6&&p.price<=6e6;else if(pr==='4')pOk=p.price>6e6;
+    return tOk&&cOk&&pOk;
+  }));
+}
+
+function apply3DTilt(){
+  document.querySelectorAll('.prop-card').forEach(card=>{
+    card.addEventListener('mousemove',e=>{
+      const r=card.getBoundingClientRect();
+      const dx=(e.clientX-r.left-r.width/2)/(r.width/2),dy=(e.clientY-r.top-r.height/2)/(r.height/2);
+      card.style.transform=`perspective(900px) rotateX(${-dy*8}deg) rotateY(${dx*8}deg) translateZ(6px)`;
+      card.style.transition='transform .08s ease,box-shadow .3s';
+    });
+    card.addEventListener('mouseleave',()=>{
+      card.style.transform='perspective(900px) rotateX(0) rotateY(0) translateZ(0)';
+      card.style.transition='transform .5s ease,box-shadow .3s';
+    });
+  });
+}
+
+function initCalc(price){
+  const sl=document.getElementById('calc-pct'),lbl=document.getElementById('calc-pct-label'),pay=document.getElementById('calc-payment');
+  function compute(){const pct=parseInt(sl.value);lbl.textContent=pct+'%';const r=0.035/12,n=360,loan=price*(1-pct/100);pay.textContent='€'+Math.round(loan*(r*Math.pow(1+r,n))/(Math.pow(1+r,n)-1)).toLocaleString('es-ES')}
+  sl.oninput=compute;compute();
+}
+
+let _map=null;
+function openModal(id){
+  const p=PROPS.find(x=>x.id===id);if(!p)return;
+  if(_map){_map.remove();_map=null}
+  document.getElementById('modal-main-img').src=p.images[0];
+  document.getElementById('modal-thumbs').innerHTML=p.images.map((img,i)=>
+    `<div class="modal-thumb ${i===0?'active':''}" onclick="setModalImg('${img}',this)"><img src="${img}" loading="lazy"></div>`).join('');
+  document.getElementById('modal-tags').innerHTML=`<span class="modal-tag modal-tag-type">${p.type}</span>`+(p.badge?`<span class="modal-tag modal-tag-badge">${p.badge}</span>`:'');
+  document.getElementById('modal-price').textContent=p.priceLabel;
+  document.getElementById('modal-name').textContent=p.name;
+  document.getElementById('modal-city').textContent=`${p.city} · España`;
+  document.getElementById('modal-stats').innerHTML=[
+    {val:p.m2,key:'m² Constr.'},{val:p.beds,key:'Dormitorios'},{val:p.baths,key:'Baños'},
+    ...(p.plot?[{val:p.plot,key:'m² Parcela'}]:[])
+  ].map(s=>`<div class="modal-stat"><div class="modal-stat-val">${s.val}</div><div class="modal-stat-key">${s.key}</div></div>`).join('');
+  document.getElementById('modal-desc').textContent=p.desc;
+  const icons=['🏊','🏡','🎬','🍷','🚗','🔒','⚙️','💆','🎾','🌿','☀️','🛥','🏌','✈️','🔥','🎵'];
+  document.getElementById('modal-features').innerHTML=p.features.map((f,i)=>
+    `<div class="modal-feature"><span class="modal-feature-icon">${icons[i%icons.length]}</span>${f}</div>`).join('');
+  document.getElementById('modal-nearby').innerHTML=(p.nearby||[]).map(n=>
+    `<div class="nearby-card">
+      <img class="nearby-card-img" src="https://images.unsplash.com/${n.img}?w=300&q=70" alt="${n.name}" loading="lazy">
+      <div class="nearby-card-body">
+        <div class="nearby-card-type">${n.type}</div>
+        <div class="nearby-card-name">${n.name}</div>
+        <div class="nearby-card-dist">📍 ${n.dist}</div>
+        <div class="nearby-card-desc">${n.desc}</div>
+      </div>
+    </div>`).join('');
+  document.getElementById('modal-overlay').classList.add('open');
+  document.body.style.overflow='hidden';
+  // Actualizar link WhatsApp del modal con la propiedad actual
+  const waBtn=document.getElementById('modal-wa-btn');
+  if(waBtn) waBtn.href=waLink(p);
+  initCalc(p.price);
+  setTimeout(()=>{
+    const[lat,lng]=p.coords;
+    _map=L.map('modal-map',{zoomControl:true,scrollWheelZoom:false,attributionControl:false}).setView([lat,lng],14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(_map);
+    const icon=L.divIcon({className:'',html:`<div style="width:16px;height:16px;background:#B8924A;border:3px solid white;border-radius:50%;box-shadow:0 3px 10px rgba(184,146,74,.5)"></div>`,iconSize:[16,16],iconAnchor:[8,8]});
+    L.marker([lat,lng],{icon}).addTo(_map).bindPopup(`<strong style="font-family:sans-serif;font-size:12px">${p.name}</strong>`).openPopup();
+    _map.invalidateSize();
+  },300);
+}
+function setModalImg(src,thumb){
+  document.getElementById('modal-main-img').src=src;
+  document.querySelectorAll('.modal-thumb').forEach(t=>t.classList.remove('active'));thumb.classList.add('active');
+}
+function closeModal(){
+  document.getElementById('modal-overlay').classList.remove('open');
+  document.body.style.overflow='';
+  if(_map){_map.remove();_map=null}
+}
+function handleOverlayClick(e){if(e.target===document.getElementById('modal-overlay'))closeModal()}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
+
+const slides=document.querySelectorAll('.slide'),dc=document.getElementById('carousel-dots');
+let cur=0,aT;
+slides.forEach((_,i)=>{const d=document.createElement('div');d.className='dot'+(i===0?' active':'');d.addEventListener('click',()=>goTo(i));dc.appendChild(d)});
+function goTo(n){
+  slides[cur].classList.remove('active');document.querySelectorAll('.dot')[cur].classList.remove('active');
+  cur=(n+slides.length)%slides.length;slides[cur].classList.add('active');document.querySelectorAll('.dot')[cur].classList.add('active');
+  document.getElementById('count-current').textContent=String(cur+1).padStart(2,'0');
+  const s=slides[cur];document.getElementById('hero-city').textContent=s.dataset.city;
+  document.getElementById('hero-name').textContent=s.dataset.name;document.getElementById('hero-price').textContent=s.dataset.price;
+  clearInterval(aT);aT=setInterval(()=>goTo(cur+1),5500);
+}
+function changeSlide(d){goTo(cur+d)}
+aT=setInterval(()=>goTo(cur+1),5500);
+
+window.addEventListener('scroll',()=>document.getElementById('nav').classList.toggle('solid',window.scrollY>60));
+
+function animateCounter(el){const t=+el.dataset.target,d=2000,s=Date.now();const tick=()=>{const p=Math.min((Date.now()-s)/d,1),e=1-Math.pow(1-p,3);el.textContent=Math.floor(e*t);if(p<1)requestAnimationFrame(tick);else el.textContent=t};tick()}
+
+const revealObs=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');revealObs.unobserve(e.target)}})},{threshold:.1});
+document.querySelectorAll('.reveal').forEach(el=>revealObs.observe(el));
+const sObs=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){e.target.querySelectorAll('[data-target]').forEach(animateCounter);sObs.unobserve(e.target)}})},{threshold:.4});
+sObs.observe(document.getElementById('stats'));
+
+const AI_RULES=[
+  [/marbella|rocamar/i,"Disponemos de la exclusiva Villa Rocamar en Marbella desde €4.850.000, con piscina infinity y spa privado. ¿Le enviamos el dossier completo?"],
+  [/barcelona|paseo|gracia|penthouse/i,"El Penthouse del Paseo de Gracia (€5.200.000) tiene terraza privada con piscina y vistas 360° a Barcelona. ¿Concertamos una visita?"],
+  [/madrid|recoletos|palacete/i,"El Palacete Recoletos (€8.900.000) es nuestra joya más exclusiva, con jardín privado y techos originales de 4m."],
+  [/ibiza|nordeste/i,"La Villa Nordeste en Ibiza (€7.200.000) incluye acceso a cala privada y helipuerto. Disponibilidad limitada."],
+  [/mallorca|cielomar/i,"Villa Cielomar en Mallorca: 720m², vistas 180° al Mediterráneo, desde €6.100.000."],
+  [/precio|coste|presupuesto|cuanto/i,"Nuestra cartera va desde €1.65M hasta €8.9M. ¿Tiene un rango de inversión en mente?"],
+  [/visita|ver|cuando|enseñar/i,"Organizamos visitas privadas de lunes a sábado. ¿Qué días le van mejor?"],
+  [/proceso|compra|comprar|tramite/i,"El proceso: (1) Reserva, (2) Arras, (3) Due diligence, (4) Escritura notarial. Nuestro equipo jurídico le acompaña."],
+  [/hipoteca|financiacion|banco/i,"Financiación disponible desde 3.2% TAE para residentes y no residentes europeos."],
+  [/hola|buenos|hey|buenas/i,"¡Hola! ¿Qué tipo de propiedad está buscando? Puedo guiarle por nuestra cartera exclusiva."],
+  [/gracias|thank/i,"¡Con mucho gusto! ¿Hay algo más en lo que pueda ayudarle?"],
+];
+let chatOpen=false;
+function toggleChat(){chatOpen=!chatOpen;document.getElementById('ai-panel').classList.toggle('open',chatOpen);if(chatOpen)document.getElementById('ai-notif').style.display='none'}
+function addMsg(t,r){const m=document.getElementById('ai-messages'),d=document.createElement('div');d.className='ai-msg '+r;d.innerHTML=`<div class="ai-msg-bubble">${t}</div>`;m.appendChild(d);m.scrollTop=m.scrollHeight}
+function aiReply(t){setTimeout(()=>{const r=AI_RULES.find(([re])=>re.test(t));addMsg(r?r[1]:'Déjeme consultarlo con nuestros asesores. Puede llamarnos al <strong>+34 915 234 000</strong>.','bot')},700)}
+function aiSend(){const i=document.getElementById('ai-input'),t=i.value.trim();if(!t)return;addMsg(t,'user');i.value='';aiReply(t)}
+function aiQuick(t){addMsg(t,'user');aiReply(t)}
+
+renderCards(PROPS);
+</script>
+</body>
+</html>
