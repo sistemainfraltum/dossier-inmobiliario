@@ -102,7 +102,8 @@ def webhook_verify():
     token     = request.args.get('hub.verify_token')
     challenge = request.args.get('hub.challenge')
     if mode == 'subscribe' and token == VERIFY_TOKEN:
-        return challenge, 200
+        from flask import Response
+        return Response(challenge, status=200, mimetype='text/plain')
     return 'Forbidden', 403
 
 
