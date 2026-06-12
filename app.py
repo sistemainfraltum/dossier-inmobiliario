@@ -5,7 +5,7 @@ Genera el PDF y lo devuelve como descarga directa en el navegador.
 import os, io, json, re, shutil, tempfile, traceback, zipfile
 import requests as http_requests
 from datetime import datetime
-from flask import Flask, request, jsonify, send_from_directory, make_response
+from flask import Flask, request, jsonify, send_from_directory, make_response, Response
 from anthropic import Anthropic
 
 from content_generator import generate_all_content
@@ -16,8 +16,8 @@ app = Flask(__name__, static_folder='.')
 # ── WhatsApp config (variables de entorno en Railway) ────────────────────────
 WHATSAPP_TOKEN    = os.environ.get('WHATSAPP_TOKEN', '')
 WHATSAPP_PHONE_ID = os.environ.get('WHATSAPP_PHONE_ID', '')
-VERIFY_TOKEN      = os.environ.get('VERIFY_TOKEN', 'infraltum2024')
-anthropic_client  = Anthropic()   # usa ANTHROPIC_API_KEY del entorno
+VERIFY_TOKEN      = os.environ.get('VERIFY_TOKEN', 'infraltum2024demo')
+anthropic_client  = Anthropic()
 
 AGENT_SYSTEM = """Eres Marco, agente inmobiliario de Sistema Infraltum especializado en propiedades de lujo en España.
 
@@ -51,14 +51,13 @@ ROL Y OBJETIVO:
 - Nunca digas que no puedes ayudar. Si no tienes el dato exacto, dices que lo consultas
 - Siempre mantén la conversación abierta, que el cliente sienta que está hablando con alguien que le va a encontrar lo que busca"""
 
-# Historial de conversación por número (en memoria)
 _conversations: dict = {}
 
 
 def get_ai_reply(phone: str, user_msg: str) -> str:
     history = _conversations.setdefault(phone, [])
     history.append({"role": "user", "content": user_msg})
-    if len(history) > 20:          # limitar historial a 10 turnos
+    if len(history) > 20:
         history = history[-20:]
         _conversations[phone] = history
     try:
@@ -70,7 +69,7 @@ def get_ai_reply(phone: str, user_msg: str) -> str:
         )
         reply = resp.content[0].text
     except Exception:
-        reply = "Hola, buenas . En qué propiedad de lujo está interesado/a?"
+        reply = "Hola! Soy Marco de Sistema Infraltum. En que propiedad de lujo estas interesado?"
     history.append({"role": "assistant", "content": reply})
     return reply
 
@@ -95,14 +94,12 @@ def demo():
     return send_from_directory('.', 'imperium-realty.html')
 
 
-# ── WhatsApp Webhook ──────────────────────────────────────────────────────────
 @app.route('/webhook', methods=['GET'])
 def webhook_verify():
     mode      = request.args.get('hub.mode')
     token     = request.args.get('hub.verify_token')
     challenge = request.args.get('hub.challenge')
-    if mode == 'subscribe' and token == VERIFY_TOKEN = os.environ.get('VERIFY_TOKEN', 'infraltum2024demo')
-        from flask import Response
+    if mode == 'subscribe' and token == VERIFY_TOKEN:
         return Response(challenge, status=200, mimetype='text/plain')
     return 'Forbidden', 403
 
@@ -129,7 +126,6 @@ def webhook_receive():
 def generar_dossier():
     tmp_dir = None
     try:
-        # ── Campos de texto ──────────────────────────────────────────────────
         data = {k: request.form.get(k, '') for k in request.form}
         if 'caracteristicas' in data:
             try:
@@ -143,7 +139,6 @@ def generar_dossier():
         if not data.get('nombre_agente'):
             data['nombre_agente'] = data.get('nombre_destinatario', '')
 
-        # ── Fotos ────────────────────────────────────────────────────────────
         tmp_dir = tempfile.mkdtemp(prefix='dossier_')
         foto_paths = []
         num_fotos = int(data.get('num_fotos', 0))
@@ -156,25 +151,23 @@ def generar_dossier():
                 foto_paths.append(path)
         data['foto_paths'] = foto_paths
 
-        # ── Generar contenido y PDF(s) ───────────────────────────────────────
-        lang       = data.get('idioma', 'es')
-        tipo       = data.get('tipo_dossier', 'inversores')
-        barrio     = (data.get('barrio') or data.get('ciudad', '')).replace(' ', '_')
-        ts         = datetime.now().strftime('%Y%m%d_%H%M')
+        lang   = data.get('idioma', 'es')
+        tipo   = data.get('tipo_dossier', 'inversores')
+        barrio = (data.get('barrio') or data.get('ciudad', '')).replace(' ', '_')
+        ts     = datetime.now().strftime('%Y%m%d_%H%M')
 
         if tipo == 'ambos':
-            # Generar ambos dossieres y empaquetar en ZIP
             zip_buf = io.BytesIO()
             with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
                 for t in ('inversores', 'particulares'):
-                    data_t = dict(data, tipo_dossier=t)
-                    content_t  = generate_all_content(data_t)
-                    pdf_t      = generate_dossier(data_t, content_t, lang)
-                    label      = 'Inversores' if t == 'inversores' else 'Particulares'
-                    fname      = re.sub(r'[^\w\.\-]', '_', f"Dossier_{label}_{barrio}_{ts}.pdf")
+                    data_t    = dict(data, tipo_dossier=t)
+                    content_t = generate_all_content(data_t)
+                    pdf_t     = generate_dossier(data_t, content_t, lang)
+                    label     = 'Inversores' if t == 'inversores' else 'Particulares'
+                    fname     = re.sub(r'[^\w\.\-]', '_', f"Dossier_{label}_{barrio}_{ts}.pdf")
                     zf.writestr(fname, pdf_t)
             zip_buf.seek(0)
-            zipname = re.sub(r'[^\w\.\-]', '_', f"Dossieres_{barrio}_{ts}.zip")
+            zipname  = re.sub(r'[^\w\.\-]', '_', f"Dossieres_{barrio}_{ts}.zip")
             response = make_response(zip_buf.read())
             response.headers['Content-Type']        = 'application/zip'
             response.headers['Content-Disposition'] = f'attachment; filename="{zipname}"'
@@ -198,13 +191,11 @@ def generar_dossier():
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
-# ── MANEJADOR GLOBAL DE ERRORES (siempre devuelve JSON) ──────────────────────
 @app.errorhandler(404)
 def handle_404(e):
     return jsonify({'success': False, 'error': 'Ruta no encontrada'}), 404
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     print("=" * 62)
