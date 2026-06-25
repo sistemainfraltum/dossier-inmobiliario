@@ -19,7 +19,7 @@ TWILIO_SID   = os.environ.get('TWILIO_SID',   '')
 TWILIO_TOKEN = os.environ.get('TWILIO_TOKEN', '')
 TWILIO_FROM  = 'whatsapp:+14155238886'
 twilio_client = TwilioClient(TWILIO_SID, TWILIO_TOKEN) if TWILIO_SID and TWILIO_TOKEN else None
-anthropic_client = Anthropic()
+anthropic_client = Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY', ''))
 
 AGENT_SYSTEM = """Eres Marco, asesor inmobiliario de Sistema Infraltum especializado en propiedades de lujo en España.
 
@@ -75,11 +75,10 @@ def get_ai_reply(phone: str, user_msg: str) -> str:
         _conversations[phone] = history
     try:
         resp = anthropic_client.messages.create(
-            model="claude-3-haiku-20240307",
+            model="claude-3-5-haiku-20241022",
             max_tokens=300,
             system=AGENT_SYSTEM,
             messages=history,
-            timeout=10,
         )
         reply = resp.content[0].text
     except Exception as e:
