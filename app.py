@@ -66,12 +66,14 @@ def get_ai_reply(phone: str, user_msg: str) -> str:
     try:
         resp = anthropic_client.messages.create(
             model="claude-3-haiku-20240307",
-            max_tokens=400,
+            max_tokens=300,
             system=AGENT_SYSTEM,
             messages=history,
+            timeout=10,
         )
         reply = resp.content[0].text
-    except Exception:
+    except Exception as e:
+        print(f"Anthropic error: {e}")
         reply = "Hola! Soy Marco de Sistema Infraltum. En que propiedad estas interesado?"
     history.append({"role": "assistant", "content": reply})
     return reply
