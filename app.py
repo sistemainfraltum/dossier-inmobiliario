@@ -77,7 +77,7 @@ def get_ai_reply(phone: str, user_msg: str) -> str:
         api_key = os.environ.get('ANTHROPIC_API_KEY', '')
         client = Anthropic(api_key=api_key)
         resp = client.messages.create(
-            model="claude-3-haiku-20240307",
+            model="claude-haiku-4-5-20251001",
             max_tokens=300,
             system=AGENT_SYSTEM,
             messages=history,
@@ -98,7 +98,7 @@ def test_ai():
             return jsonify({'error': 'No API key found'})
         client = Anthropic(api_key=api_key)
         resp = client.messages.create(
-            model="claude-3-haiku-20240307",
+            model="claude-haiku-4-5-20251001",
             max_tokens=50,
             messages=[{"role": "user", "content": "Di hola en una palabra"}],
         )
