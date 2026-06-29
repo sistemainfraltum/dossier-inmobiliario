@@ -90,6 +90,23 @@ def get_ai_reply(phone: str, user_msg: str) -> str:
     return reply
 
 
+@app.route('/test-ai')
+def test_ai():
+    try:
+        api_key = os.environ.get('ANTHROPIC_API_KEY', '')
+        if not api_key:
+            return jsonify({'error': 'No API key found'})
+        client = Anthropic(api_key=api_key)
+        resp = client.messages.create(
+            model="claude-3-5-haiku-20241022",
+            max_tokens=50,
+            messages=[{"role": "user", "content": "Di hola en una palabra"}],
+        )
+        return jsonify({'ok': True, 'reply': resp.content[0].text})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+
 @app.route('/')
 def index():
     return send_from_directory('.', 'index.html')
